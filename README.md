@@ -1,35 +1,30 @@
 # Kitchen App (working codename)
 
-Local-first recipe, kitchen inventory, and meal-decision application. Android is the first production target; Desktop/JVM is the development and inspection target.
+Local-first recipe, kitchen inventory, and meal-decision application. Android is the first production target; Desktop/JVM is used for development and inspection.
 
-> `kitchen-app` and `dev.kitchenapp` are working identifiers. Rename them before a public store release if the final product name changes.
+> `kitchen-app` and `dev.kitchenapp` are working identifiers. Rename them before a public store release if the product name changes.
 
-## Bootstrap status
+## Current state
 
-This repository intentionally contains architecture and build scaffolding only. Domain behavior, persistence schema, importer logic, and production UI are implemented in later slices.
+The repository has completed its domain foundation, Paprika archive inspection and recipe-draft import, and ingredient-line parsing slices. It includes shared domain/parser tests and JVM importer tests.
 
-## Required local tooling
+The Android and desktop entry points currently display a placeholder. Recipe persistence, the deterministic kitchen engine, application workflows, and production UI are not implemented yet. See [the architecture map](docs/architecture/module-map.md), [the implementation history and slice gates](docs/NEXT-SLICES.md), and [the bootstrap setup guide](docs/BOOTSTRAP.md).
 
-- JDK 17 or newer (CI uses JDK 17)
-- Android Studio with Kotlin Multiplatform support, or IntelliJ IDEA with the Kotlin Multiplatform plugin
-- Android SDK API 37
-- Gradle Wrapper generated and committed (see `docs/BOOTSTRAP.md`)
+## Local development
 
-## First verification
+Requirements: JDK 17 or newer, Android Studio with Kotlin Multiplatform support, and Android SDK Platform 37 for Android builds.
 
-After generating the Gradle Wrapper:
+Useful commands:
 
 ```bash
-./gradlew --version
 ./gradlew check
 ./gradlew :app:android:assembleDebug
 ./gradlew :app:desktop:run
-./gradlew :tools:dev-cli:run
+./gradlew :tools:dev-cli:run --args="inspect-paprika path/to/export.paprikarecipes"
 ```
 
-See `docs/BOOTSTRAP.md` for the exact setup sequence and `docs/NEXT-SLICES.md` for guided implementation of the domain foundation and Paprika inspection harness.
+The Paprika inspection command reports archive and JSON structure. It does not output scalar recipe values.
 
 ## License
 
 SPDX-License-Identifier: MPL-2.0
-

@@ -12,7 +12,7 @@ data class EntryJsonSummary(
     val nullKeys: Set<String>,
     /** Value type per key: "string", "number", "boolean", "array", "object". */
     val keyTypes: Map<String, String>,
-    /** Sanitized example per key (shape description, truncated scalar, or null). */
+    /** Shape-only example per key; scalar contents are never retained. */
     val examples: Map<String, String?>,
     /** Sanitized parse failure reason when the entry could not be parsed as a JSON object. */
     val parseError: String? = null,

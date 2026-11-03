@@ -55,6 +55,7 @@ class PaprikaJsonInspector {
         }
     }
 
+    /** Returns structure only; scalar contents may contain private recipe data. */
     private fun exampleOf(element: JsonElement): String? = when (element) {
         is JsonNull -> null
         is JsonArray -> {
@@ -66,8 +67,9 @@ class PaprikaJsonInspector {
             val content = element.content
             when {
                 content.contains('\n') -> "string with ${content.lines().size} lines"
-                element.isString -> content.take(SCALAR_LIMIT)
-                else -> content.take(SCALAR_LIMIT)
+                element.isString -> "string"
+                element.content == "true" || element.content == "false" -> "boolean"
+                else -> "number"
             }
         }
     }
@@ -75,7 +77,6 @@ class PaprikaJsonInspector {
     private val lenientJson = Json
 
     private companion object {
-        const val SCALAR_LIMIT = 40
         const val KEY_SAMPLE_LIMIT = 6
     }
 }
