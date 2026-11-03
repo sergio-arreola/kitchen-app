@@ -19,7 +19,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-    // Add only dependencies required by this module.
+            // Civil date/time concepts (LocalDate, TimeZone). Moments use kotlin.time.Instant/Clock.
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
