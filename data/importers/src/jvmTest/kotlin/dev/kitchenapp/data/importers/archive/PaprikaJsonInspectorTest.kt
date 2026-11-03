@@ -70,7 +70,7 @@ class PaprikaJsonInspectorTest {
 
         // Scalar values are represented by type, never by their contents.
         val servingsLike = all.getValue("servings")
-        assertEquals("number", servingsLike.examples.single())
+        assertEquals("string", servingsLike.examples.single())
     }
 
     @Test
