@@ -3,10 +3,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
-    androidLibrary {
+    android {
         namespace = "dev.kitchenapp.data.importers"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -15,12 +16,17 @@ kotlin {
         }
     }
 
-    jvm()
+    jvm {
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_17
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:application"))
+    implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

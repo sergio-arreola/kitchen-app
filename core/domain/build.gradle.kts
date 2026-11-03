@@ -6,7 +6,7 @@ plugins {
 }
 
 kotlin {
-    androidLibrary {
+    android {
         namespace = "dev.kitchenapp.core.domain"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
@@ -15,11 +15,16 @@ kotlin {
         }
     }
 
-    jvm()
+    jvm {
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_17
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
-    // Add only dependencies required by this module.
+            // Civil date/time concepts (LocalDate, TimeZone). Moments use kotlin.time.Instant/Clock.
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

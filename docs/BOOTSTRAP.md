@@ -24,7 +24,7 @@ If `gradle` is already available:
 ./scripts/init-wrapper.sh
 ```
 
-Otherwise install a temporary system Gradle through SDKMAN or Homebrew, then run the script. The script pins the project Wrapper to Gradle 9.4.1. Once these files exist, commit them:
+Otherwise, install a temporary system Gradle through SDKMAN or Homebrew, then run the script. The script pins the project Wrapper to Gradle 9.4.1. Once these files exist, commit them:
 
 ```text
 gradlew
