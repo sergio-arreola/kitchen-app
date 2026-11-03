@@ -17,8 +17,8 @@ fun KitchenApp() {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Kitchen bootstrap OK")
-            Text("Domain implementation starts in Slice 1")
+            Text("Kitchen App")
+            Text("Foundation work is in place; the product UI is still under development.")
         }
     }
 }

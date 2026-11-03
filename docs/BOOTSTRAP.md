@@ -1,6 +1,6 @@
-# Repository Bootstrap Guide
+# Repository Bootstrap Reference
 
-This is the exact setup order for the repository scaffold.
+This guide documents the original repository bootstrap workflow. The Gradle Wrapper and project structure are already present; use it as background when setting up a fresh development environment, not as a description of the current project state.
 
 ## 1. Install prerequisites
 

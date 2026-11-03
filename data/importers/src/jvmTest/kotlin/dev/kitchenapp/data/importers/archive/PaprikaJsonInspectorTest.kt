@@ -68,9 +68,9 @@ class PaprikaJsonInspectorTest {
         val categories = all.getValue("categories")
         assertTrue(categories.examples.filterNotNull().all { it.startsWith("array[string]×") })
 
-        // Short scalars are kept as examples.
+        // Scalar values are represented by type, never by their contents.
         val servingsLike = all.getValue("servings")
-        assertEquals("4", servingsLike.examples.single())
+        assertEquals("string", servingsLike.examples.single())
     }
 
     @Test
