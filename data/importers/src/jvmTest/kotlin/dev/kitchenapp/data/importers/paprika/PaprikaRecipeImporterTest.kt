@@ -1,5 +1,7 @@
 package dev.kitchenapp.data.importers.paprika
 
+import dev.kitchenapp.core.domain.math.Rational
+import dev.kitchenapp.core.domain.units.UnitCode
 import dev.kitchenapp.data.importers.archive.ImportSource
 import dev.kitchenapp.data.importers.archive.PaprikaFixture
 import dev.kitchenapp.data.importers.archive.ZipFileArchiveReader
@@ -54,6 +56,25 @@ class PaprikaRecipeImporterTest {
         assertEquals(listOf("2 eggs", "Pinch of salt"), plain.ingredientLines)
         assertEquals("Whisk the eggs.\nCook over low heat.", plain.directionsText)
         assertNull(plain.photoFileName)
+    }
+
+    @Test
+    fun parsesIngredientLinesIntoStructuredDraftIngredients() {
+        val records = importFixture()
+        val plain = records.filterIsInstance<PaprikaImportRecord.Success>()
+            .first { it.draft.sourceEntryName == "recipes/plain-recipe.json" }.draft
+
+        assertEquals(listOf("2 eggs", "Pinch of salt"), plain.ingredientLines)
+        assertEquals(plain.ingredientLines.size, plain.parsedIngredients.size)
+
+        val eggs = plain.parsedIngredients[0]
+        assertEquals(Rational.of(2), eggs.quantity)
+        assertEquals(UnitCode.EGG, eggs.unit)
+        assertEquals("egg", eggs.name)
+
+        val salt = plain.parsedIngredients[1]
+        assertNull(salt.quantity)
+        assertEquals("Pinch of salt", salt.name)
     }
 
     @Test

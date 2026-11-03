@@ -1,9 +1,8 @@
 package dev.kitchenapp.data.importers.paprika
 
-/**
- * Format-agnostic intermediate between a transport DTO and a future domain
- * `Recipe`. Ingredient lines stay raw; parsing happens in a later slice.
- */
+import dev.kitchenapp.data.importers.ingredient.ParsedIngredient
+
+/** Format-agnostic intermediate between a transport DTO and a future domain `Recipe`. */
 data class RecipeDraft(
     /** Archive entry this draft came from, for traceability. */
     val sourceEntryName: String,
@@ -11,8 +10,10 @@ data class RecipeDraft(
     val externalId: String?,
     val name: String,
     val servings: String?,
-    /** Raw, unparsed ingredient lines. Blank lines removed, content untouched. */
+    /** Raw ingredient lines, blanks removed; content untouched. */
     val ingredientLines: List<String>,
+    /** Structured parse of [ingredientLines], same order. */
+    val parsedIngredients: List<ParsedIngredient> = emptyList(),
     val directionsText: String,
     val notes: String?,
     val categories: List<String>,

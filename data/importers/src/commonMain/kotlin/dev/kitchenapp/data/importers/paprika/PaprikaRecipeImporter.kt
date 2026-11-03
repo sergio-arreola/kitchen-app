@@ -4,6 +4,7 @@ import dev.kitchenapp.data.importers.archive.ArchiveReader
 import dev.kitchenapp.data.importers.archive.GzipOutcome
 import dev.kitchenapp.data.importers.archive.ImportSource
 import dev.kitchenapp.data.importers.archive.PaprikaArchiveInspection
+import dev.kitchenapp.data.importers.ingredient.IngredientLineParser
 import kotlinx.serialization.json.Json
 
 /** Maps a `.paprikarecipes` archive to per-entry [PaprikaImportRecord]s with [RecipeDraft] payloads. */
@@ -61,6 +62,10 @@ class PaprikaRecipeImporter(private val reader: ArchiveReader) {
         val name = dto.name?.trim().orEmpty()
         if (name.isEmpty()) return null to warnings
 
+        val lines = dto.ingredients.orEmpty().split('\n')
+            .map { line -> line.trimEnd('\r') }
+            .filter { it.isNotBlank() }
+
         if (dto.uid.isNullOrBlank()) warnings += "missing uid"
         if (dto.ingredients.isNullOrBlank()) warnings += "missing ingredients"
         if (dto.directions.isNullOrBlank()) warnings += "missing directions"
@@ -70,9 +75,8 @@ class PaprikaRecipeImporter(private val reader: ArchiveReader) {
             externalId = dto.uid,
             name = name,
             servings = dto.servings,
-            ingredientLines = dto.ingredients.orEmpty().split('\n')
-                .map { line -> line.trimEnd('\r') }
-                .filter { it.isNotBlank() },
+            ingredientLines = lines,
+            parsedIngredients = lines.map(IngredientLineParser::parse),
             directionsText = dto.directions.orEmpty(),
             notes = dto.notes,
             categories = dto.categories,

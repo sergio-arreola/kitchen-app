@@ -178,6 +178,66 @@ A failed recipe must produce an explicit failure record. No archive entry may di
 
 ---
 
+## Slice 4 — Ingredient line parsing
+
+Consume the Slice 1 primitives (`Rational`, `UnitCode`, `UnitDimension`) by
+parsing the raw ingredient lines that Slice 3 deliberately left intact in
+`RecipeDraft`.
+
+### Components to create
+
+In `data:importers`, `ingredient` package, common pure Kotlin (no platform
+or serialization dependencies):
+
+```text
+ParsedIngredient
+IngredientLineParser
+```
+
+`ParsedIngredient` fields:
+
+- `name` (never blank)
+- `quantity: Rational?`
+- `quantityHigh: Rational?` (upper bound of a range)
+- `unit: UnitCode?` (consumers may default to `PIECE`/`UNKNOWN` by dimension)
+- `preparation: String?` (trailing `, chopped` clause)
+- `importance: IngredientImportance`
+- `approximateLevel: ApproximateLevel`
+
+### Method-level guidance
+
+- `parse(line)` is a pure function; it never throws and never drops content.
+- Quantity forms: integers, decimals, ASCII fractions (`1/2`), mixed numbers
+  (`1 1/2`), attached Unicode fractions (`1½`, `½`), ranges (`2-3`, `1 to 2`).
+- Units: match tokens against a conservative variant table. Ambiguous single
+  letters (`c`, `t`, `T`, `in`, `m`) are excluded deliberately — temperature
+  codes and prepositions must not swallow ingredient words.
+- `~` / `about` prefix → `ApproximateLevel.MODERATE`; missing quantity →
+  `ROUGH`; otherwise `EXACT`.
+- `(optional)` → `IngredientImportance.OPTIONAL`; default is `CRITICAL`.
+- Degrade, never drop: a line that resists parsing keeps its full text as
+  `name` with `quantity = null`; a blank remainder after a recognized unit
+  falls back to the unit display name or the original line.
+
+### Wiring
+
+- `RecipeDraft` gains `parsedIngredients` (default `emptyList()`);
+  `ingredientLines` stays raw for traceability.
+- The Paprika importer populates it during DTO→draft mapping. No DTO changes.
+
+### Out of scope
+
+Unit conversion/scaling, importance heuristics beyond `(optional)`, and
+persistence (Slice 9).
+
+### Gate
+
+`./gradlew :data:importers:allTests` passes with table-driven parser tests
+covering the fixture cases (fractional quantities, Unicode fractions,
+missing quantities, preparation clauses).
+
+---
+
 ## When to activate reserved dependencies
 
 The version catalog already records likely dependencies so versions remain centralized, but do not add them to modules until required:
