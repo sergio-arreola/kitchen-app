@@ -1,0 +1,10 @@
+{
+  "uid": "fixture-0005",
+  "name": "Fixture Granola",
+  "categories": [
+    "Breakfast",
+    "Fixture"
+  ],
+  "ingredients": "2 cups oats\n1/4 cup honey",
+  "directions": "Combine.\nBake at 300F."
+}
