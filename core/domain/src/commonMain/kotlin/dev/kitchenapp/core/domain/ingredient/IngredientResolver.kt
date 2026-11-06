@@ -6,7 +6,7 @@ package dev.kitchenapp.core.domain.ingredient
  * Ambiguous aliases return all matching ingredients in stable order. No
  * substitutions, plural stemming, or descriptive-word removal are inferred.
  */
-public class IngredientResolver(ingredients: Iterable<Ingredient>) {
+class IngredientResolver(ingredients: Iterable<Ingredient>) {
     private val byNormalizedName: Map<String, List<Ingredient>>
 
     init {
@@ -32,7 +32,7 @@ public class IngredientResolver(ingredients: Iterable<Ingredient>) {
         }
     }
 
-    public fun resolve(input: String): IngredientResolution {
+    fun resolve(input: String): IngredientResolution {
         val key = IngredientNameNormalizer.normalize(input)
         val matches = byNormalizedName[key].orEmpty()
         return when (matches.size) {

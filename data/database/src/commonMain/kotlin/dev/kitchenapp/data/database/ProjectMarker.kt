@@ -1,3 +1,3 @@
 package dev.kitchenapp.data.database
 
-public object DatabaseModule
+object DatabaseModule

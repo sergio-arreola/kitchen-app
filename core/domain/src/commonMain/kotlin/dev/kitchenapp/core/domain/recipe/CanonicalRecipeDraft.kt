@@ -8,18 +8,18 @@ import dev.kitchenapp.core.domain.math.Rational
 import dev.kitchenapp.core.domain.units.UnitCode
 
 /** Reviewable, source-independent recipe draft produced by an import adapter. */
-public data class CanonicalRecipeDraft(
-    public val id: SketchId = SketchId.generate(),
-    public val name: String,
-    public val servings: String? = null,
-    public val ingredients: List<CanonicalRecipeIngredient>,
-    public val directionsText: String,
-    public val notes: String? = null,
-    public val categories: List<String> = emptyList(),
-    public val sourceEntryName: String? = null,
-    public val externalId: String? = null,
-    public val sourceName: String? = null,
-    public val sourceUrl: String? = null,
+data class CanonicalRecipeDraft(
+    val id: SketchId = SketchId.generate(),
+    val name: String,
+    val servings: String? = null,
+    val ingredients: List<CanonicalRecipeIngredient>,
+    val directionsText: String,
+    val notes: String? = null,
+    val categories: List<String> = emptyList(),
+    val sourceEntryName: String? = null,
+    val externalId: String? = null,
+    val sourceName: String? = null,
+    val sourceUrl: String? = null,
 ) {
     init {
         require(name.isNotBlank()) { "Recipe name cannot be blank" }
@@ -30,16 +30,16 @@ public data class CanonicalRecipeDraft(
  * Parsed ingredient data alongside the untouched input and explicit resolver
  * outcome, so import review never loses source wording.
  */
-public data class CanonicalRecipeIngredient(
-    public val rawLine: String,
-    public val parsedName: String,
-    public val quantity: Rational?,
-    public val quantityHigh: Rational?,
-    public val unit: UnitCode?,
-    public val preparation: String?,
-    public val importance: IngredientImportance,
-    public val approximateLevel: ApproximateLevel,
-    public val resolution: IngredientResolution,
+data class CanonicalRecipeIngredient(
+    val rawLine: String,
+    val parsedName: String,
+    val quantity: Rational?,
+    val quantityHigh: Rational?,
+    val unit: UnitCode?,
+    val preparation: String?,
+    val importance: IngredientImportance,
+    val approximateLevel: ApproximateLevel,
+    val resolution: IngredientResolution,
 ) {
     init {
         require(rawLine.isNotBlank()) { "Raw ingredient line cannot be blank" }

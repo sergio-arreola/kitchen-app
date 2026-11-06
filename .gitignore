@@ -9,3 +9,4 @@ out/
 .externalNativeBuild/
 .cxx/
 *.hprof
+/AGENTS.md

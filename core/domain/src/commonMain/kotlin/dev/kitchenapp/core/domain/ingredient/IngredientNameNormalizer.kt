@@ -7,8 +7,8 @@ package dev.kitchenapp.core.domain.ingredient
  * whitespace. It deliberately does not remove descriptive words, stem words,
  * or infer substitutions.
  */
-public object IngredientNameNormalizer {
-    public fun normalize(value: String): String {
+object IngredientNameNormalizer {
+    fun normalize(value: String): String {
         val normalized = buildString(value.length) {
             var previousWasSpace = true
             for (character in value.lowercase()) {
