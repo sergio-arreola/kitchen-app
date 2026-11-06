@@ -134,3 +134,54 @@ INSERT INTO ingredient_preference(ingredient_id, strength, score) VALUES (?, ?, 
 
 deleteIngredientPreferences:
 DELETE FROM ingredient_preference;
+
+
+insertCookEvent:
+INSERT INTO cook_event(id, recipe_id, cooked_on, servings, note) VALUES (?, ?, ?, ?, ?);
+
+insertCookConsumption:
+INSERT INTO cook_event_consumption(event_id, lot_id, quantity_numerator, quantity_denominator, unit_code)
+VALUES (?, ?, ?, ?, ?);
+
+selectLotBeforeCooking:
+SELECT id, ingredient_id AS ingredientId, location_id AS locationId,
+       amount_kind AS amountKind, quantity_numerator AS quantityNumerator,
+       quantity_denominator AS quantityDenominator, unit_code AS unitCode,
+       approximate_level AS approximateLevel, purchased_on AS purchasedOn,
+       opened_on AS openedOn, frozen_on AS frozenOn,
+       manufacturer_use_by AS manufacturerUseBy, user_use_by AS userUseBy
+FROM cook_event_inventory_before WHERE event_id = ? ORDER BY id;
+
+insertLotBeforeCooking:
+INSERT INTO cook_event_inventory_before(
+  event_id, id, ingredient_id, location_id, amount_kind,
+  quantity_numerator, quantity_denominator, unit_code, approximate_level,
+  purchased_on, opened_on, frozen_on, manufacturer_use_by, user_use_by
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertCookLeftover:
+INSERT INTO leftover(id, cook_event_id, ingredient_id, name, quantity_numerator,
+                    quantity_denominator, unit_code, prepared_on, use_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectLeftovers:
+SELECT id, cook_event_id AS cookEventId, ingredient_id AS ingredientId,
+       name, quantity_numerator AS quantityNumerator,
+       quantity_denominator AS quantityDenominator, unit_code AS unitCode,
+       prepared_on AS preparedOn, use_by AS useBy
+FROM leftover ORDER BY prepared_on DESC, id;
+
+selectCookLeftoversForEvent:
+SELECT id FROM leftover WHERE cook_event_id = ? ORDER BY id;
+
+deleteCookLeftovers:
+DELETE FROM leftover WHERE cook_event_id = ?;
+
+selectCookEventExists:
+SELECT id FROM cook_event WHERE id = ?;
+
+selectCookEventUndone:
+SELECT event_id FROM cook_event_undo WHERE event_id = ?;
+
+insertCookEventUndo:
+INSERT INTO cook_event_undo(event_id, undone_on) VALUES (?, ?);
