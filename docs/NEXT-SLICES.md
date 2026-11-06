@@ -1,6 +1,6 @@
 # Implementation Slices and Gates
 
-This document records the original slice plan and its implementation gates. Slices 1–7 are implemented; slice 8 is in progress. Completed slice descriptions remain as a record of scope and acceptance criteria.
+This document records the original slice plan and its implementation gates. Slices 1–9 are implemented. Completed slice descriptions remain as a record of scope and acceptance criteria.
 
 ## Roadmap status
 
@@ -14,8 +14,8 @@ This document records the original slice plan and its implementation gates. Slic
 | 5 | Canonical ingredients and recipe domain | Implemented |
 | 6 | Kitchen inventory and freshness | Implemented |
 | 7 | Quantity, equipment, and exclusion evaluation | Implemented |
-| 8 | Explainable matching, ranking, and simulation fixtures | In progress |
-| 9 | Local SQLite persistence | Planned |
+| 8 | Explainable matching, ranking, and simulation fixtures | Implemented |
+| 9 | Local SQLite persistence | Implemented |
 | 10 | Application workflows and cooking transactions | Planned |
 | 11 | URL/JSON-LD and manual recipe import | Planned |
 | 12 | Android-first product UI and desktop engineering UI | Planned |

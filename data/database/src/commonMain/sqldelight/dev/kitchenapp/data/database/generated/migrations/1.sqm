@@ -1,0 +1,112 @@
+CREATE TABLE ingredient (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE ingredient_alias (
+  ingredient_id TEXT NOT NULL REFERENCES ingredient(id) ON DELETE CASCADE,
+  alias TEXT NOT NULL,
+  PRIMARY KEY (ingredient_id, alias)
+);
+
+CREATE TABLE recipe (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  servings TEXT,
+  directions_text TEXT NOT NULL,
+  notes TEXT,
+  source_name TEXT,
+  source_url TEXT
+);
+
+CREATE TABLE recipe_category (
+  recipe_id TEXT NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  PRIMARY KEY (recipe_id, position)
+);
+
+CREATE TABLE recipe_ingredient (
+  id TEXT NOT NULL PRIMARY KEY,
+  recipe_id TEXT NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  ingredient_id TEXT NOT NULL REFERENCES ingredient(id),
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  quantity_high_numerator INTEGER,
+  quantity_high_denominator INTEGER,
+  unit_code TEXT,
+  preparation TEXT,
+  importance TEXT NOT NULL,
+  approximate_level TEXT NOT NULL,
+  raw_line TEXT NOT NULL,
+  UNIQUE (recipe_id, position)
+);
+
+CREATE TABLE kitchen_location (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE inventory_lot (
+  id TEXT NOT NULL PRIMARY KEY,
+  ingredient_id TEXT NOT NULL REFERENCES ingredient(id),
+  location_id TEXT NOT NULL REFERENCES kitchen_location(id),
+  amount_kind TEXT NOT NULL,
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  unit_code TEXT,
+  approximate_level TEXT,
+  purchased_on TEXT,
+  opened_on TEXT,
+  frozen_on TEXT,
+  manufacturer_use_by TEXT,
+  user_use_by TEXT
+);
+
+CREATE TABLE available_equipment (
+  normalized_name TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE hard_exclusion (
+  ingredient_id TEXT NOT NULL PRIMARY KEY REFERENCES ingredient(id)
+);
+
+CREATE TABLE ingredient_preference (
+  ingredient_id TEXT NOT NULL PRIMARY KEY REFERENCES ingredient(id),
+  strength TEXT NOT NULL,
+  score INTEGER NOT NULL
+);
+
+CREATE TABLE cook_event (
+  id TEXT NOT NULL PRIMARY KEY,
+  recipe_id TEXT NOT NULL REFERENCES recipe(id),
+  cooked_on TEXT NOT NULL,
+  servings TEXT,
+  note TEXT
+);
+
+CREATE TABLE inventory_transaction (
+  id TEXT NOT NULL PRIMARY KEY,
+  ingredient_id TEXT NOT NULL REFERENCES ingredient(id),
+  location_id TEXT REFERENCES kitchen_location(id),
+  occurred_on TEXT NOT NULL,
+  transaction_kind TEXT NOT NULL,
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  unit_code TEXT,
+  note TEXT
+);
+
+CREATE TABLE leftover (
+  id TEXT NOT NULL PRIMARY KEY,
+  cook_event_id TEXT NOT NULL REFERENCES cook_event(id) ON DELETE CASCADE,
+  ingredient_id TEXT REFERENCES ingredient(id),
+  name TEXT NOT NULL,
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  unit_code TEXT,
+  prepared_on TEXT NOT NULL,
+  use_by TEXT
+);
