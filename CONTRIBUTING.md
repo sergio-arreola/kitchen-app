@@ -5,7 +5,7 @@ This project uses short-lived branches and pull requests into `main`.
 ## Baseline workflow
 
 1. Create an issue when the change is behaviorally significant.
-2. Branch from current `main`.
+2. Branch from current `main`. For slice work, use `feat/slice-<number>-<short-scope>` (for example, `feat/slice-7-quantity-evaluation`); use a matching `fix/`, `docs/`, or `chore/` prefix for other focused work.
 3. Keep the branch focused on one implementation slice or one independently reviewable part of a large slice. It is fine to make several checkpoint commits on that branch.
 4. Open a PR when that slice or part is complete and its acceptance gate is ready. Do not wait to bundle unrelated slices into one PR.
 5. Add or update tests for changed domain behavior.
