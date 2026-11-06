@@ -13,6 +13,7 @@ This project uses short-lived branches and pull requests into `main`.
 7. Use DCO sign-off on every commit: `git commit -s`.
 8. Open a PR into `main` and describe its slice, behavior, verification, and architecture impact. Direct pushes to `main` are blocked.
 9. Wait for the required GitHub Actions `build` check to pass on the latest PR commit before merging. If you push another commit, wait for the updated check.
+10. After confirming the PR is merged, switch to `main` and fast-forward it with `git pull --ff-only origin main`. Then delete the local topic branch with `git branch -d <branch>`.
 
 ### Pull request size and cadence
 
