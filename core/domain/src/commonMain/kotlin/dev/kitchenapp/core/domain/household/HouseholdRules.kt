@@ -87,9 +87,9 @@ fun evaluateEquipment(
     val available = availableEquipment.map { it.trim().lowercase() }.toSet()
     val reasons = requirements.map { requirement ->
         val requestedAvailable = requirement.equipment.trim().lowercase() in available
-        val substitute = requirement.acceptableSubstitutes.firstOrNull {
-            it.trim().lowercase() in available
-        }
+        val substitute = requirement.acceptableSubstitutes
+            .sortedWith(compareBy({ it.trim().lowercase() }, { it }))
+            .firstOrNull { it.trim().lowercase() in available }
         when (requirement.kind) {
             EquipmentRequirementKind.IRRELEVANT ->
                 EquipmentReason(requirement.equipment, EquipmentStatus.IRRELEVANT)

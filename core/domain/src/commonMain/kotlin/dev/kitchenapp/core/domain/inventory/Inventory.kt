@@ -7,8 +7,6 @@ import dev.kitchenapp.core.domain.identifiers.KitchenLocationId
 import dev.kitchenapp.core.domain.math.Rational
 import dev.kitchenapp.core.domain.time.DomainLocalDate
 import dev.kitchenapp.core.domain.units.UnitCode
-import kotlinx.datetime.DatePeriod
-import kotlinx.datetime.plus
 
 /** A configurable place where kitchen inventory can be stored. */
 data class KitchenLocation(
@@ -19,7 +17,6 @@ data class KitchenLocation(
         require(name.isNotBlank()) { "Kitchen location name cannot be blank" }
     }
 }
-
 /**
  * Quantity precision for a lot. Presence-only items intentionally carry no
  * amount; approximate and exact quantities retain the unit when it is known.
@@ -52,7 +49,6 @@ sealed interface InventoryAmount {
         }
     }
 }
-
 /**
  * One batch of a canonical ingredient at one kitchen location.
  *
@@ -124,7 +120,6 @@ data class UseByGuidance(
             else -> null
         }
 }
-
 /**
  * Optional perishable-food windows, expressed as days after the relevant event.
  *
@@ -263,7 +258,3 @@ data class KitchenInventory(
         return copy(lots = lots.map { if (it.id == lotId) transform(it) else it })
     }
 }
-
-/** Computes a civil date relative to this one, without introducing a time zone. */
-private fun DomainLocalDate.plusDays(days: Int): DomainLocalDate =
-    DomainLocalDate(value + DatePeriod(days = days))

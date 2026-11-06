@@ -1,6 +1,6 @@
 # Implementation Slices and Gates
 
-This document records the original slice plan and its implementation gates. Slices 1–4 are now implemented; their descriptions below are retained as a record of scope and acceptance criteria, not as a claim that those slices remain upcoming.
+This document records the original slice plan and its implementation gates. Slices 1–7 are implemented; slice 8 is in progress. Completed slice descriptions remain as a record of scope and acceptance criteria.
 
 ## Roadmap status
 
@@ -11,10 +11,10 @@ This document records the original slice plan and its implementation gates. Slic
 | 2 | Paprika archive inspection | Implemented |
 | 3 | Paprika recipe-draft import | Implemented |
 | 4 | Ingredient-line parsing | Implemented |
-| 5 | Canonical ingredients and recipe domain | Planned |
-| 6 | Kitchen inventory and freshness | Planned |
-| 7 | Quantity, equipment, and exclusion evaluation | Planned |
-| 8 | Explainable matching, ranking, and simulation fixtures | Planned |
+| 5 | Canonical ingredients and recipe domain | Implemented |
+| 6 | Kitchen inventory and freshness | Implemented |
+| 7 | Quantity, equipment, and exclusion evaluation | Implemented |
+| 8 | Explainable matching, ranking, and simulation fixtures | In progress |
 | 9 | Local SQLite persistence | Planned |
 | 10 | Application workflows and cooking transactions | Planned |
 | 11 | URL/JSON-LD and manual recipe import | Planned |
@@ -353,6 +353,10 @@ same readiness, ranking, and explanation.
 - `RecipeMatcher` combining readiness, exclusions, equipment, and query
   constraints.
 - `RecipeRanker` with a documented score breakdown.
+- Simulation metadata supplies estimated time, serving capacity, and meal
+  types absent from the current recipe model.
+- Shopping quantities aggregate only when units match or a reviewed conversion
+  exists; unknown quantities stay visible and incompatible units remain separate.
 - Freshness/use-soon signals and ingredient-importance weighting.
 - Explanations for available, missing, uncertain, expiring, and
   equipment-constrained ingredients.
@@ -360,9 +364,14 @@ same readiness, ranking, and explanation.
   equipment, and expected outcomes.
 - `ShoppingAggregator` for missing ingredients across selected recipes.
 
-Ranking stays deterministic. A future intent interpreter may translate natural
-language into a structured query, but it does not replace the matcher or
-ranker.
+Ranking stays deterministic. The score adds 100/50/0 for ready,
+needs-confirmation, and not-ready; up to 20 for required-ingredient coverage; a
+capped use-soon bonus weighted by ingredient importance; and subtracts
+soft-preference and equipment-warning penalties. Exact weights are exposed in
+`ScoreBreakdown` and documented in `RecipeRanker`. A requested time or serving
+filter rejects candidates with unknown metadata rather than guessing. A future
+intent interpreter may translate natural language into a structured query, but
+it does not replace the matcher or ranker.
 
 ### Gate
 

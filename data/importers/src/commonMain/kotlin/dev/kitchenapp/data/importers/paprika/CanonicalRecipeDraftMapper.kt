@@ -6,7 +6,7 @@ import dev.kitchenapp.core.domain.recipe.CanonicalRecipeIngredient
 import dev.kitchenapp.data.importers.ingredient.IngredientLineParser
 
 /** Maps an importer draft to a source-independent, reviewable domain draft. */
-public fun RecipeDraft.toCanonicalRecipeDraft(
+fun RecipeDraft.toCanonicalRecipeDraft(
     resolver: IngredientResolver,
 ): CanonicalRecipeDraft {
     val parsed = if (parsedIngredients.size == ingredientLines.size) {

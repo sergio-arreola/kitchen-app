@@ -1,3 +1,3 @@
 package dev.kitchenapp.testkit
 
-public object TestkitModule
+object TestkitModule

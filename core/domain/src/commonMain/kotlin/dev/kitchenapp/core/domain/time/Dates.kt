@@ -34,11 +34,26 @@ value class DomainLocalDate(val value: LocalDate) {
     fun previousDay(): DomainLocalDate = DomainLocalDate(value - DatePeriod(days = 1))
 
     /** The date one day after this one. */
-    fun nextDay(): DomainLocalDate = DomainLocalDate(value + DatePeriod(days = 1))
+    fun nextDay(): DomainLocalDate = plusDays(1)
+
+    /** Adds a non-negative number of civil days. */
+    fun plusDays(days: Int): DomainLocalDate {
+        require(days >= 0) { "Days cannot be negative" }
+        return DomainLocalDate(value + DatePeriod(days = days))
+    }
+
+    /** Compares civil dates. */
+    fun isBefore(other: DomainLocalDate): Boolean = value < other.value
+
+    fun isOnOrBefore(other: DomainLocalDate): Boolean = value <= other.value
 
     override fun toString(): String = value.toString()
 
     companion object {
+        /** Creates a civil date. */
+        fun of(year: Int, monthNumber: Int, dayOfMonth: Int): DomainLocalDate =
+            DomainLocalDate(LocalDate(year, monthNumber, dayOfMonth))
+
         /** Today's date in [timeZone], as reported by [clock]. */
         fun today(timeZone: TimeZone, clock: Clock = Clock.System): DomainLocalDate =
             DomainLocalDate(clock.todayIn(timeZone))
