@@ -7,8 +7,8 @@ import kotlin.uuid.Uuid
 value class IngredientId(val value: Uuid) {
     override fun toString(): String = value.toString()
 
-    public companion object {
-        public fun generate(): IngredientId = IngredientId(Uuid.random())
+    companion object {
+        fun generate(): IngredientId = IngredientId(Uuid.random())
     }
 }
 
@@ -17,8 +17,8 @@ value class IngredientId(val value: Uuid) {
 value class RecipeId(val value: Uuid) {
     override fun toString(): String = value.toString()
 
-    public companion object {
-        public fun generate(): RecipeId = RecipeId(Uuid.random())
+    companion object {
+        fun generate(): RecipeId = RecipeId(Uuid.random())
     }
 }
 
@@ -27,7 +27,27 @@ value class RecipeId(val value: Uuid) {
 value class RecipeIngredientId(val value: Uuid) {
     override fun toString(): String = value.toString()
 
-    public companion object {
-        public fun generate(): RecipeIngredientId = RecipeIngredientId(Uuid.random())
+    companion object {
+        fun generate(): RecipeIngredientId = RecipeIngredientId(Uuid.random())
+    }
+}
+
+/** Stable identity for an inventory lot. */
+@JvmInline
+value class InventoryLotId(val value: Uuid) {
+    override fun toString(): String = value.toString()
+
+    companion object {
+        fun generate(): InventoryLotId = InventoryLotId(Uuid.random())
+    }
+}
+
+/** Stable identity for a user-configured kitchen location. */
+@JvmInline
+value class KitchenLocationId(val value: Uuid) {
+    override fun toString(): String = value.toString()
+
+    companion object {
+        fun generate(): KitchenLocationId = KitchenLocationId(Uuid.random())
     }
 }
