@@ -23,8 +23,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-    implementation(project(":core:domain"))
-    implementation(project(":core:engine"))
+            implementation(project(":core:domain"))
+            implementation(project(":core:engine"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

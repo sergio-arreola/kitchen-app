@@ -1,0 +1,136 @@
+enableForeignKeys:
+PRAGMA foreign_keys = 1;
+
+selectIngredientById:
+SELECT ingredient.*, ingredient_alias.alias AS alias
+FROM ingredient
+LEFT JOIN ingredient_alias ON ingredient_alias.ingredient_id = ingredient.id
+WHERE ingredient.id = ?;
+
+selectAllIngredients:
+SELECT ingredient.*, ingredient_alias.alias AS alias
+FROM ingredient
+LEFT JOIN ingredient_alias ON ingredient_alias.ingredient_id = ingredient.id
+ORDER BY ingredient.name COLLATE NOCASE, ingredient_alias.alias COLLATE NOCASE;
+
+insertIngredient:
+INSERT INTO ingredient(id, name) VALUES (?, ?);
+
+selectIngredientExists:
+SELECT id FROM ingredient WHERE id = ?;
+
+updateIngredient:
+UPDATE ingredient SET name = ? WHERE id = ?;
+
+deleteIngredientAliases:
+DELETE FROM ingredient_alias WHERE ingredient_id = ?;
+
+insertIngredientAlias:
+INSERT INTO ingredient_alias(ingredient_id, alias) VALUES (?, ?);
+
+deleteIngredient:
+DELETE FROM ingredient WHERE id = ?;
+
+selectRecipeById:
+SELECT id, name, servings, directions_text AS directionsText, notes,
+       source_name AS sourceName, source_url AS sourceUrl
+FROM recipe WHERE id = ?;
+
+selectAllRecipes:
+SELECT * FROM recipe ORDER BY name COLLATE NOCASE, id;
+
+insertRecipe:
+INSERT INTO recipe(id, name, servings, directions_text, notes, source_name, source_url)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateRecipe:
+UPDATE recipe SET name = ?, servings = ?, directions_text = ?, notes = ?, source_name = ?, source_url = ?
+WHERE id = ?;
+
+deleteRecipe:
+DELETE FROM recipe WHERE id = ?;
+
+deleteRecipeCategories:
+DELETE FROM recipe_category WHERE recipe_id = ?;
+
+insertRecipeCategory:
+INSERT INTO recipe_category(recipe_id, position, name) VALUES (?, ?, ?);
+
+selectRecipeCategories:
+SELECT name FROM recipe_category WHERE recipe_id = ? ORDER BY position;
+
+deleteRecipeIngredients:
+DELETE FROM recipe_ingredient WHERE recipe_id = ?;
+
+insertRecipeIngredient:
+INSERT INTO recipe_ingredient(
+  id, recipe_id, position, ingredient_id,
+  quantity_numerator, quantity_denominator,
+  quantity_high_numerator, quantity_high_denominator,
+  unit_code, preparation, importance, approximate_level, raw_line
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectRecipeIngredients:
+SELECT id, recipe_id AS recipeId, position, ingredient_id AS ingredientId,
+       quantity_numerator AS quantityNumerator, quantity_denominator AS quantityDenominator,
+       quantity_high_numerator AS quantityHighNumerator,
+       quantity_high_denominator AS quantityHighDenominator,
+       unit_code AS unitCode, preparation, importance,
+       approximate_level AS approximateLevel, raw_line AS rawLine
+FROM recipe_ingredient WHERE recipe_id = ? ORDER BY position;
+
+selectKitchenLocations:
+SELECT * FROM kitchen_location ORDER BY name COLLATE NOCASE, id;
+
+insertKitchenLocation:
+INSERT INTO kitchen_location(id, name) VALUES (?, ?);
+
+deleteKitchenLocations:
+DELETE FROM kitchen_location;
+
+selectInventoryLots:
+SELECT id, ingredient_id AS ingredientId, location_id AS locationId,
+       amount_kind AS amountKind, quantity_numerator AS quantityNumerator,
+       quantity_denominator AS quantityDenominator, unit_code AS unitCode,
+       approximate_level AS approximateLevel, purchased_on AS purchasedOn,
+       opened_on AS openedOn, frozen_on AS frozenOn,
+       manufacturer_use_by AS manufacturerUseBy, user_use_by AS userUseBy
+FROM inventory_lot ORDER BY id;
+
+insertInventoryLot:
+INSERT INTO inventory_lot(
+  id, ingredient_id, location_id, amount_kind,
+  quantity_numerator, quantity_denominator, unit_code, approximate_level,
+  purchased_on, opened_on, frozen_on, manufacturer_use_by, user_use_by
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+deleteInventoryLots:
+DELETE FROM inventory_lot;
+
+selectAvailableEquipment:
+SELECT name FROM available_equipment ORDER BY normalized_name;
+
+insertAvailableEquipment:
+INSERT INTO available_equipment(normalized_name, name) VALUES (?, ?);
+
+deleteAvailableEquipment:
+DELETE FROM available_equipment;
+
+selectHardExclusions:
+SELECT ingredient_id AS ingredientId FROM hard_exclusion ORDER BY ingredient_id;
+
+insertHardExclusion:
+INSERT INTO hard_exclusion(ingredient_id) VALUES (?);
+
+deleteHardExclusions:
+DELETE FROM hard_exclusion;
+
+selectIngredientPreferences:
+SELECT ingredient_id AS ingredientId, strength, score
+FROM ingredient_preference ORDER BY ingredient_id;
+
+insertIngredientPreference:
+INSERT INTO ingredient_preference(ingredient_id, strength, score) VALUES (?, ?, ?);
+
+deleteIngredientPreferences:
+DELETE FROM ingredient_preference;
