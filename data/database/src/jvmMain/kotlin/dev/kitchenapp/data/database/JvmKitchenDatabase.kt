@@ -6,7 +6,7 @@ import dev.kitchenapp.data.database.generated.KitchenDatabase
 /** File-backed SQLite driver for desktop and JVM tooling. */
 object JvmKitchenDatabase {
     fun open(path: String): KitchenDatabase {
-        val driver = JdbcSqliteDriver("jdbc:sqlite:$path")
-        return KitchenDatabaseFactory.open(driver)
+        val driver = JdbcSqliteDriver("jdbc:sqlite:$path", schema = KitchenDatabase.Schema)
+        return KitchenDatabase(driver).also { it.recipeQueries.enableForeignKeys() }
     }
 }

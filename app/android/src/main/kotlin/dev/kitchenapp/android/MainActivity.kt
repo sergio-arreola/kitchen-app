@@ -1,19 +1,73 @@
 package dev.kitchenapp.android
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import dev.kitchenapp.core.application.AddCanonicalIngredient
+import dev.kitchenapp.core.application.GetRecipe
+import dev.kitchenapp.core.application.PreviewRecipeImport
+import dev.kitchenapp.core.application.RecipeLibraryUseCases
+import dev.kitchenapp.core.application.SaveReviewedRecipe
+import dev.kitchenapp.core.application.SearchRecipes
+import dev.kitchenapp.data.database.AndroidKitchenDatabase
+import dev.kitchenapp.data.database.SqlDelightKitchenRepository
+import dev.kitchenapp.data.database.SqlDelightRecipeRepository
+import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
+import dev.kitchenapp.data.importers.KtorRecipePageFetcher
+import dev.kitchenapp.data.importers.archive.AndroidContentResolverArchiveReader
 import dev.kitchenapp.sharedui.KitchenApp
 
 class MainActivity : ComponentActivity() {
+    private var onPaprikaArchiveSelected: ((String?) -> Unit)? = null
+
+    private val paprikaArchivePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        val callback = onPaprikaArchiveSelected
+        onPaprikaArchiveSelected = null
+        callback?.invoke(uri?.toString())
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
-        setContent { KitchenApp() }
+
+        val database = AndroidKitchenDatabase.open(applicationContext)
+        val recipes = SqlDelightRecipeRepository(database)
+        val kitchen = SqlDelightKitchenRepository(database)
+        val workflows = RecipeLibraryUseCases(
+            searchRecipes = SearchRecipes(recipes),
+            getRecipe = GetRecipe(recipes),
+            saveReviewedRecipe = SaveReviewedRecipe(recipes, kitchen),
+            addCanonicalIngredient = AddCanonicalIngredient(kitchen),
+            previewRecipeImport = PreviewRecipeImport(
+                gateway = DefaultRecipeImportGateway(
+                    archiveReader = AndroidContentResolverArchiveReader(contentResolver),
+                    pageFetcher = KtorRecipePageFetcher(),
+                ),
+                recipes = recipes,
+                kitchen = kitchen,
+            ),
+        )
+
+        setContent {
+            KitchenApp(
+                workflows = workflows,
+                onRequestPaprikaArchive = { onSelected ->
+                    onPaprikaArchiveSelected = onSelected
+                    paprikaArchivePicker.launch(arrayOf("*/*"))
+                },
+            )
+        }
     }
 }
