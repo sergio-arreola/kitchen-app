@@ -1,22 +1,30 @@
 package dev.kitchenapp.data.importers.paprika
 
+import dev.kitchenapp.data.importers.RecipeImportRecord
+
 /** Per-record import outcome. */
 enum class ImportOutcome {
     SUCCESS,
     SUCCESS_WITH_WARNINGS,
+    NEEDS_REVIEW,
     FAILED,
     SKIPPED,
 }
 
 /** Result of importing one archive entry; exactly one record per entry. */
-sealed interface PaprikaImportRecord {
-    val outcome: ImportOutcome
+sealed interface PaprikaImportRecord : RecipeImportRecord {
     val entryName: String
+
+    override val sourceKey: String
+        get() = entryName
+
+    override val draft: RecipeDraft?
+        get() = null
 
     /** Entry imported cleanly. */
     data class Success(
         override val entryName: String,
-        val draft: RecipeDraft,
+        override val draft: RecipeDraft,
     ) : PaprikaImportRecord {
         override val outcome: ImportOutcome = ImportOutcome.SUCCESS
     }
@@ -24,8 +32,8 @@ sealed interface PaprikaImportRecord {
     /** Entry imported, but with noted anomalies (missing uid, empty sections, ...). */
     data class SuccessWithWarnings(
         override val entryName: String,
-        val draft: RecipeDraft,
-        val warnings: List<String>,
+        override val draft: RecipeDraft,
+        override val warnings: List<String>,
     ) : PaprikaImportRecord {
         override val outcome: ImportOutcome = ImportOutcome.SUCCESS_WITH_WARNINGS
     }

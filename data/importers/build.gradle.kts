@@ -24,12 +24,17 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-    implementation(project(":core:domain"))
-    implementation(project(":core:application"))
-    implementation(libs.kotlinx.serialization.json)
+            implementation(project(":core:domain"))
+            implementation(project(":core:application"))
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.engine.defaults)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
         }
     }
 }
