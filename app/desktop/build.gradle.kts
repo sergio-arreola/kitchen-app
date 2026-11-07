@@ -6,6 +6,9 @@ plugins {
 
 dependencies {
     implementation(projects.app.sharedUi)
+    implementation(projects.core.application)
+    implementation(projects.data.database)
+    implementation(projects.data.importers)
     implementation(compose.desktop.currentOs)
 }
 

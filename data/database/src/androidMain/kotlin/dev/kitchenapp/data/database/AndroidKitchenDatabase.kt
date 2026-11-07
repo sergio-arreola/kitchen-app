@@ -7,5 +7,6 @@ import dev.kitchenapp.data.database.generated.KitchenDatabase
 /** Android SQLite driver using the app's private database directory. */
 object AndroidKitchenDatabase {
     fun open(context: Context, name: String = "kitchen.db"): KitchenDatabase =
-        KitchenDatabaseFactory.open(AndroidSqliteDriver(KitchenDatabase.Schema, context, name))
+        KitchenDatabase(AndroidSqliteDriver(KitchenDatabase.Schema, context, name))
+            .also { it.recipeQueries.enableForeignKeys() }
 }
