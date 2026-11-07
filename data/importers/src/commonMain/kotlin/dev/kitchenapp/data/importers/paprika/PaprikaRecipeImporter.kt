@@ -1,5 +1,6 @@
 package dev.kitchenapp.data.importers.paprika
 
+import dev.kitchenapp.data.importers.RecipeImporter
 import dev.kitchenapp.data.importers.archive.ArchiveReader
 import dev.kitchenapp.data.importers.archive.GzipOutcome
 import dev.kitchenapp.data.importers.archive.ImportSource
@@ -8,10 +9,10 @@ import dev.kitchenapp.data.importers.ingredient.IngredientLineParser
 import kotlinx.serialization.json.Json
 
 /** Maps a `.paprikarecipes` archive to per-entry [PaprikaImportRecord]s with [RecipeDraft] payloads. */
-class PaprikaRecipeImporter(private val reader: ArchiveReader) {
+class PaprikaRecipeImporter(private val reader: ArchiveReader) : RecipeImporter<ImportSource, PaprikaImportRecord> {
 
     /** Imports every entry of the archive; returns one record per entry. */
-    fun import(source: ImportSource): List<PaprikaImportRecord> {
+    override fun import(source: ImportSource): List<PaprikaImportRecord> {
         val report = reader.inspect(source)
         return report.entries.flatMap { importEntry(source, report, it.name) }
     }
