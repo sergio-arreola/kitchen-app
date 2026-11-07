@@ -470,28 +470,97 @@ source entry disappears silently.
 After the domain, simulation gate, persistence, and application workflows are
 stable, build the Compose flows. Android is the V1 product. Desktop is mainly
 for importing and inspecting larger libraries and testing kitchen scenarios.
-
-### User workflows
-
-- Import and review recipes.
-- Build/edit inventory across pantry, refrigerator, freezer, and custom
-  locations.
-- Configure tracking precision, equipment, allergens, and preferences.
-- Ask what can be made and inspect ranked results with explanations.
-- Review missing ingredients and shopping lists.
-- Cook, confirm consumption, and optionally record leftovers.
-- Browse and edit saved recipes offline.
+Implement this slice as the ordered PRs below. Each PR must receive independent
+review, pass its listed verification and the repository `check`/CI gate, and be
+merged before work begins on the next PR. Keep each PR focused on its own user
+flow; do not carry unreviewed follow-up work into the next branch.
 
 Shared UI consumes application state/use cases, not SQLDelight queries. Keep
 Android and desktop entry points separate while sharing practical UI and
 presentation logic. Structured filters remain available offline even if a
 future optional natural-language interpreter is added.
 
-### Gate
+### PR 12.1 — Compose shells and navigation
 
-Exercise end-to-end user journeys on Android and engineering/import flows on
-Desktop. Verify loading, empty, error, review, and success states. Show reasons
-for recommendations rather than an unexplained score.
+- Establish shared Compose presentation conventions and navigation structure.
+- Keep Android and Desktop launch/entry points platform-specific while making
+  shared UI components available to both where practical.
+- Add the basic app shell and reusable loading, empty, error, review, and
+  success state presentation.
+
+**Independent review and verification:** Review module boundaries and platform
+entry points. Run the relevant shared and platform compilation/check tasks and
+`./gradlew check`; launch both targets and verify the shell plus each common
+state. Merge before PR 12.2.
+
+### PR 12.2 — Recipe library, import, and review
+
+- Browse saved recipes offline and view recipe details.
+- Import through the existing Paprika, URL, and manual application workflows.
+- Show per-record outcomes, field warnings, duplicate review, and manual
+  correction; support editing saved recipes through the application layer.
+
+**Independent review and verification:** Review that UI depends on application
+workflows rather than database queries and that failures remain reviewable.
+Run importer/application tests and `./gradlew check`; exercise successful,
+partial, failed, duplicate, and offline browse/edit flows on Android. Merge
+before PR 12.3.
+
+### PR 12.3 — Kitchen setup and inventory
+
+- Build and edit inventory across pantry, refrigerator, freezer, and custom
+  locations.
+- Configure tracking precision, equipment, allergens, and preferences.
+
+**Independent review and verification:** Review that edits use application
+use cases and preserve tracking/rule semantics. Run affected tests and
+`./gradlew check`; exercise add, edit, move, and configuration flows on Android,
+including empty and error states. Merge before PR 12.4.
+
+### PR 12.4 — Recommendations and shopping
+
+- Ask what can be made using structured filters available offline.
+- Show ranked recipes with explanations for readiness, missing or uncertain
+  ingredients, freshness, exclusions, and equipment constraints.
+- Review missing ingredients and create shopping lists.
+
+**Independent review and verification:** Review recommendation explanations
+against matcher output; never present an unexplained score. Run matching,
+application, and shopping tests plus `./gradlew check`; exercise filtered
+results, no-result, explanation, and shopping flows on Android. Merge before
+PR 12.5.
+
+### PR 12.5 — Cooking and leftovers
+
+- Start a non-mutating cooking session, confirm consumption explicitly, and
+  optionally record leftovers.
+- Keep browsing or starting a recipe from changing inventory.
+
+**Independent review and verification:** Review explicit confirmation and
+application transaction boundaries. Run cooking workflow tests and
+`./gradlew check`; exercise cancel, confirm, quantity adjustment, and optional
+leftover flows on Android, including persisted state after app restart. Merge
+before PR 12.6.
+
+### PR 12.6 — Desktop engineering workspace
+
+- Provide Desktop flows for importing and inspecting larger recipe libraries
+  and testing kitchen scenarios using the shared application/presentation
+  boundary where practical.
+- Keep Desktop focused on development and inspection rather than treating it
+  as the V1 product target.
+
+**Independent review and verification:** Review platform separation and shared
+logic choices. Run Desktop/JVM tests and `./gradlew check`; launch Desktop and
+exercise library import/inspection and kitchen scenario flows.
+
+### Slice 12 completion gate
+
+After all PRs have been independently reviewed, verified, and merged, exercise
+end-to-end user journeys on Android and engineering/import flows on Desktop.
+Verify loading, empty, error, review, and success states throughout. Confirm
+recommendations show their reasons and structured filters remain available
+offline.
 
 ---
 
