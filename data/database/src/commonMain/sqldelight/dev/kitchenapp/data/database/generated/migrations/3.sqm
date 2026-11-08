@@ -1,0 +1,19 @@
+CREATE TABLE recipe_category_catalog (
+  name TEXT NOT NULL COLLATE NOCASE PRIMARY KEY
+);
+
+INSERT OR IGNORE INTO recipe_category_catalog(name)
+SELECT DISTINCT name FROM recipe_category;
+
+ALTER TABLE recipe ADD COLUMN prep_time_seconds INTEGER;
+ALTER TABLE recipe ADD COLUMN cook_time_seconds INTEGER;
+ALTER TABLE recipe ADD COLUMN chilling_time_seconds INTEGER;
+ALTER TABLE recipe ADD COLUMN total_time_seconds INTEGER;
+ALTER TABLE recipe ADD COLUMN imported_at TEXT;
+ALTER TABLE recipe ADD COLUMN image_source_url TEXT;
+
+CREATE TABLE recipe_image (
+  recipe_id TEXT NOT NULL PRIMARY KEY REFERENCES recipe(id) ON DELETE CASCADE,
+  bytes BLOB NOT NULL,
+  media_type TEXT NOT NULL
+);

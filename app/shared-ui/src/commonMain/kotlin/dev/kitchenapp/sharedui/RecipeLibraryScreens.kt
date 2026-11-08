@@ -1,22 +1,28 @@
 package dev.kitchenapp.sharedui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,17 +42,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import dev.kitchenapp.core.application.RecipeImportCandidate
 import dev.kitchenapp.core.application.RecipeImportOutcome
+import dev.kitchenapp.core.application.RecipeImportImageSource
 import dev.kitchenapp.core.application.RecipeImportRequest
+import dev.kitchenapp.core.application.RecipeLibraryFilter
 import dev.kitchenapp.core.application.RecipeLibraryUseCases
 import dev.kitchenapp.core.domain.ingredient.IngredientResolution
 import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.recipe.CanonicalRecipeDraft
 import dev.kitchenapp.core.domain.recipe.Recipe
 import dev.kitchenapp.core.domain.recipe.RecipeIngredient
+import dev.kitchenapp.core.domain.recipe.RecipeImage
+import dev.kitchenapp.core.domain.recipe.formatRecipeServings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,18 +75,34 @@ internal fun RecipeLibraryScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var recipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedFilter by remember { mutableStateOf<RecipeLibraryFilter>(RecipeLibraryFilter.All) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var retryKey by remember { mutableIntStateOf(0) }
+    var filterMenuExpanded by remember { mutableStateOf(false) }
+    var showCategoryManager by rememberSaveable { mutableStateOf(false) }
+    var newCategory by rememberSaveable { mutableStateOf("") }
+    var renameCategory by remember { mutableStateOf<String?>(null) }
+    var renameCategoryValue by rememberSaveable { mutableStateOf("") }
+    var categoryError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(query, refreshKey, retryKey) {
+    LaunchedEffect(query, selectedFilter, refreshKey, retryKey) {
         loading = true
         val result = withContext(Dispatchers.IO) {
-            runSafely { workflows.searchRecipes.search(query) }
+            runSafely {
+                categories = workflows.listRecipeCategories.getAll()
+                workflows.searchRecipes.search(query, selectedFilter)
+            }
         }
         result.onSuccess {
             recipes = it
             error = null
+            if (selectedFilter is RecipeLibraryFilter.Category &&
+                categories.none { category -> category.equals((selectedFilter as RecipeLibraryFilter.Category).name, true) }
+            ) {
+                selectedFilter = RecipeLibraryFilter.All
+            }
         }.onFailure {
             error = "Saved recipes could not be loaded."
         }
@@ -104,6 +133,52 @@ internal fun RecipeLibraryScreen(
                 label = { Text("Search saved recipes") },
                 singleLine = true,
             )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box {
+                    TextButton(onClick = { filterMenuExpanded = true }) {
+                        Text(selectedFilter.label())
+                    }
+                    DropdownMenu(
+                        expanded = filterMenuExpanded,
+                        onDismissRequest = { filterMenuExpanded = false },
+                    ) {
+                        listOf(
+                            RecipeLibraryFilter.All,
+                            RecipeLibraryFilter.MostRecent,
+                            RecipeLibraryFilter.Uncategorized,
+                        ).forEach { filter ->
+                            DropdownMenuItem(
+                                text = { Text(filter.label()) },
+                                onClick = {
+                                    selectedFilter = filter
+                                    filterMenuExpanded = false
+                                },
+                            )
+                        }
+                        categories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category) },
+                                onClick = {
+                                    selectedFilter = RecipeLibraryFilter.Category(category)
+                                    filterMenuExpanded = false
+                                },
+                            )
+                        }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Manage categories") },
+                            onClick = {
+                                filterMenuExpanded = false
+                                showCategoryManager = true
+                            },
+                        )
+                    }
+                }
+            }
             when {
                 loading -> AppContentStatePanel(
                     modifier = Modifier.weight(1f),
@@ -134,9 +209,7 @@ internal fun RecipeLibraryScreen(
                     ),
                     onAction = onImport,
                 )
-                else -> LazyColumn(
-                    modifier = Modifier.weight(1f),
-                ) {
+                else -> LazyColumn(modifier = Modifier.weight(1f)) {
                     items(recipes, key = { it.id.toString() }) { recipe ->
                         Column(
                             modifier = Modifier
@@ -146,10 +219,16 @@ internal fun RecipeLibraryScreen(
                         ) {
                             Text(recipe.name, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "${recipe.ingredients.size} ingredients",
+                                recipe.ingredients.size.toString() + " ingredients",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (recipe.categories.isNotEmpty()) {
+                                Text(
+                                    recipe.categories.joinToString(" · "),
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
                         }
                         HorizontalDivider()
                     }
@@ -157,6 +236,110 @@ internal fun RecipeLibraryScreen(
             }
         }
     }
+
+    if (showCategoryManager) {
+        AlertDialog(
+            onDismissRequest = { showCategoryManager = false; categoryError = null },
+            title = { Text("Recipe categories") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = newCategory,
+                        onValueChange = { newCategory = it; categoryError = null },
+                        label = { Text("New category") },
+                        singleLine = true,
+                    )
+                    Button(
+                        enabled = newCategory.isNotBlank(),
+                        onClick = {
+                            runCatching { workflows.createRecipeCategory.create(newCategory) }
+                                .onSuccess {
+                                    newCategory = ""
+                                    categoryError = null
+                                    retryKey++
+                                }
+                                .onFailure { categoryError = it.message ?: "Category could not be created." }
+                        },
+                    ) { Text("Add category") }
+                    categories.forEach { category ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(category, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {
+                                renameCategory = category
+                                renameCategoryValue = category
+                            }) { Text("Rename") }
+                            TextButton(onClick = {
+                                runCatching { workflows.removeRecipeCategory.remove(category) }
+                                    .onSuccess {
+                                        if (selectedFilter is RecipeLibraryFilter.Category &&
+                                            (selectedFilter as RecipeLibraryFilter.Category).name.equals(category, ignoreCase = true)
+                                        ) {
+                                            selectedFilter = RecipeLibraryFilter.All
+                                        }
+                                        retryKey++
+                                    }
+                                    .onFailure { categoryError = it.message ?: "Category could not be removed." }
+                            }) { Text("Remove") }
+                        }
+                    }
+                    categoryError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCategoryManager = false; categoryError = null }) { Text("Done") }
+            },
+        )
+    }
+
+    renameCategory?.let { oldName ->
+        AlertDialog(
+            onDismissRequest = { renameCategory = null; categoryError = null },
+            title = { Text("Rename category") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = renameCategoryValue,
+                        onValueChange = { renameCategoryValue = it; categoryError = null },
+                        label = { Text("Category name") },
+                        singleLine = true,
+                    )
+                    categoryError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = renameCategoryValue.isNotBlank(),
+                    onClick = {
+                        runCatching { workflows.renameRecipeCategory.rename(oldName, renameCategoryValue) }
+                            .onSuccess {
+                                if (selectedFilter is RecipeLibraryFilter.Category &&
+                                    (selectedFilter as RecipeLibraryFilter.Category).name.equals(oldName, ignoreCase = true)
+                                ) {
+                                    selectedFilter = RecipeLibraryFilter.Category(renameCategoryValue.trim())
+                                }
+                                renameCategory = null
+                                categoryError = null
+                                retryKey++
+                            }
+                            .onFailure { categoryError = it.message ?: "Category could not be renamed." }
+                    },
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameCategory = null; categoryError = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+private fun RecipeLibraryFilter.label(): String = when (this) {
+    RecipeLibraryFilter.All -> "All recipes"
+    RecipeLibraryFilter.MostRecent -> "Most Recent"
+    RecipeLibraryFilter.Uncategorized -> "Uncategorized"
+    is RecipeLibraryFilter.Category -> name
 }
 
 @Composable
@@ -165,8 +348,10 @@ internal fun RecipeDetailScreen(
     recipeId: String,
     onBack: () -> Unit,
     onSaved: () -> Unit,
+    onDeleted: () -> Unit,
 ) {
     var recipe by remember(recipeId) { mutableStateOf<Recipe?>(null) }
+    var recipeImage by remember(recipeId) { mutableStateOf<RecipeImage?>(null) }
     var loadError by remember(recipeId) { mutableStateOf<String?>(null) }
     var loading by remember(recipeId) { mutableStateOf(true) }
     var editing by rememberSaveable(recipeId) { mutableStateOf(false) }
@@ -174,18 +359,34 @@ internal fun RecipeDetailScreen(
     var servings by rememberSaveable(recipeId) { mutableStateOf("") }
     var directions by rememberSaveable(recipeId) { mutableStateOf("") }
     var notes by rememberSaveable(recipeId) { mutableStateOf("") }
+    var categories by rememberSaveable(recipeId) { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by rememberSaveable(recipeId) { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
+    var imageBitmap by remember(recipeImage) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(recipeImage) {
+        imageBitmap = recipeImage?.let { image ->
+            withContext(Dispatchers.Default) { decodeRecipeImage(image.bytes) }
+        }
+    }
 
     LaunchedEffect(recipeId) {
+        val id = RecipeId(Uuid.parse(recipeId))
         val result = withContext(Dispatchers.IO) {
-            runSafely { workflows.getRecipe.get(RecipeId(Uuid.parse(recipeId))) }
+            runSafely {
+                val loaded = workflows.getRecipe.get(id)
+                loaded to loaded?.let { workflows.getRecipeImage.get(id) }
+            }
         }
-        recipe = result.getOrNull()
+        recipe = result.getOrNull()?.first
+        recipeImage = result.getOrNull()?.second
         loadError = when {
             result.isFailure -> "Recipe could not be loaded."
-            result.getOrNull() == null -> "This recipe is no longer available."
+            result.getOrNull()?.first == null -> "This recipe is no longer available."
             else -> null
         }
         loading = false
@@ -205,9 +406,13 @@ internal fun RecipeDetailScreen(
                                 servings = loadedRecipe.servings.orEmpty()
                                 directions = loadedRecipe.directionsText
                                 notes = loadedRecipe.notes.orEmpty()
+                                categories = loadedRecipe.categories.joinToString(", ")
                                 editing = true
                             },
                         ) { Text("Edit") }
+                        TextButton(
+                            onClick = { showDeleteConfirmation = true; error = null },
+                        ) { Text("Delete") }
                     }
                 },
             )
@@ -243,6 +448,13 @@ internal fun RecipeDetailScreen(
                     minLines = 4,
                 )
                 OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                OutlinedTextField(
+                    categories,
+                    { categories = it },
+                    label = { Text("Categories, comma separated") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { editing = false; error = null }) { Text("Cancel") }
@@ -257,6 +469,8 @@ internal fun RecipeDetailScreen(
                                         servings = servings.trim().ifBlank { null },
                                         directionsText = directions.trim(),
                                         notes = notes.trim().ifBlank { null },
+                                        categories = categories.split(',').map(String::trim)
+                                            .filter(String::isNotBlank).distinctBy(String::lowercase),
                                     )
                                     val result = withContext(Dispatchers.IO) {
                                         runSafely { workflows.saveReviewedRecipe.save(updated) }
@@ -285,7 +499,36 @@ internal fun RecipeDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
-                    Text(loadedRecipe.servings?.let { "Serves $it" } ?: "Servings not specified")
+                    imageBitmap?.let { bitmap ->
+                        val imageLink = loadedRecipe.imageSourceUrl ?: loadedRecipe.sourceUrl
+                        val imageModifier = Modifier.fillMaxWidth().height(220.dp)
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = loadedRecipe.name + " source image",
+                            contentScale = ContentScale.Crop,
+                            modifier = if (imageLink == null) imageModifier else imageModifier.clickable {
+                                runCatching { uriHandler.openUri(imageLink) }
+                            },
+                        )
+                    }
+                    Text(formatRecipeServings(loadedRecipe.servings) ?: "Servings not specified")
+                    loadedRecipe.prepTimeSeconds?.let { Text("Prep: " + it.formatRecipeTime()) }
+                    loadedRecipe.cookTimeSeconds?.let { Text("Cook: " + it.formatRecipeTime()) }
+                    loadedRecipe.chillingTimeSeconds?.let { Text("Chilling: " + it.formatRecipeTime()) }
+                    loadedRecipe.totalTimeSeconds?.let { Text("Total: " + it.formatRecipeTime()) }
+                    loadedRecipe.sourceUrl?.let { source ->
+                        TextButton(onClick = { runCatching { uriHandler.openUri(source) } }) {
+                            Text("View original recipe")
+                        }
+                    }
+                    loadedRecipe.imageSourceUrl?.takeIf { it != loadedRecipe.sourceUrl }?.let { imageSource ->
+                        TextButton(onClick = { runCatching { uriHandler.openUri(imageSource) } }) {
+                            Text("View image source")
+                        }
+                    }
+                    if (loadedRecipe.categories.isNotEmpty()) {
+                        Text("Categories: " + loadedRecipe.categories.joinToString(" · "))
+                    }
                     Text("Ingredients", style = MaterialTheme.typography.titleMedium)
                 }
                 items(loadedRecipe.ingredients, key = { it.id.toString() }) { ingredient ->
@@ -298,12 +541,54 @@ internal fun RecipeDetailScreen(
                         Text("Notes", style = MaterialTheme.typography.titleMedium)
                         Text(it.toDisplayText())
                     }
-                    if (loadedRecipe.categories.isNotEmpty()) {
-                        Text(loadedRecipe.categories.joinToString(" · "))
-                    }
                 }
             }
         }
+    }
+    if (showDeleteConfirmation && loadedRecipe != null) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) showDeleteConfirmation = false },
+            title = { Text("Delete recipe?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This permanently removes " + loadedRecipe.name + " from your recipe library.")
+                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !deleting,
+                    onClick = {
+                        scope.launch {
+                            deleting = true
+                            error = null
+                            try {
+                                val result = withContext(Dispatchers.IO) {
+                                    runSafely { workflows.deleteRecipe.delete(loadedRecipe.id) }
+                                }
+                                result.onSuccess { deleted ->
+                                    if (deleted) {
+                                        showDeleteConfirmation = false
+                                        onDeleted()
+                                    } else {
+                                        error = "Recipe is no longer available."
+                                    }
+                                }.onFailure {
+                                    error = it.message ?: "Recipe could not be deleted."
+                                }
+                            } finally {
+                                deleting = false
+                            }
+                        }
+                    },
+                ) { Text(if (deleting) "Deleting…" else "Delete") }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 
@@ -540,7 +825,42 @@ internal fun RecipeImportReviewScreen(
     var servings by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf(draft.servings.orEmpty()) }
     var directions by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf(draft.directionsText) }
     var notes by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf(draft.notes.orEmpty()) }
+    var categories by rememberSaveable(selectedCandidate.sourceKey) {
+        mutableStateOf(draft.categories.joinToString(", "))
+    }
     var duplicateConfirmed by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf(false) }
+    var sourceImage by remember(selectedCandidate.sourceKey) { mutableStateOf<RecipeImage?>(null) }
+    var sourceImageBitmap by remember(sourceImage) { mutableStateOf<ImageBitmap?>(null) }
+    var imageLoading by remember(selectedCandidate.sourceKey) { mutableStateOf(false) }
+    var imageWarning by remember(selectedCandidate.sourceKey) { mutableStateOf<String?>(null) }
+    val uriHandler = LocalUriHandler.current
+    val imageSourceUrl = when (val source = selectedCandidate.imageSource) {
+        is RecipeImportImageSource.Url -> source.url
+        is RecipeImportImageSource.PaprikaArchiveEntry -> draft.imageSourceUrl
+        null -> draft.imageSourceUrl
+    }
+
+    LaunchedEffect(selectedCandidate.sourceKey, selectedCandidate.imageSource) {
+        val source = selectedCandidate.imageSource
+        if (source == null) return@LaunchedEffect
+        imageLoading = true
+        val result = withContext(Dispatchers.IO) {
+            runSafely { workflows.loadRecipeImage.load(source) }
+        }
+        result.onSuccess {
+            sourceImage = it
+            if (it == null) imageWarning = "Source image could not be loaded; the recipe link is still available."
+        }.onFailure {
+            imageWarning = "Source image could not be loaded; the recipe link is still available."
+        }
+        imageLoading = false
+    }
+
+    LaunchedEffect(sourceImage) {
+        sourceImageBitmap = sourceImage?.let { image ->
+            withContext(Dispatchers.Default) { decodeRecipeImage(image.bytes) }
+        }
+    }
     var ingredientNamesEncoded by rememberSaveable(selectedCandidate.sourceKey) {
         mutableStateOf(
             draft.ingredients.joinToString(namesSeparator) { ingredient ->
@@ -591,10 +911,41 @@ internal fun RecipeImportReviewScreen(
                         Text("Save another copy anyway")
                     }
                 }
+                if (imageLoading) Text("Loading source image…")
+                sourceImageBitmap?.let { bitmap ->
+                    val imageLink = imageSourceUrl ?: draft.sourceUrl
+                    val imageModifier = Modifier.fillMaxWidth().height(220.dp)
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = draft.name + " source image",
+                        contentScale = ContentScale.Crop,
+                        modifier = if (imageLink == null) imageModifier else imageModifier.clickable {
+                            runCatching { uriHandler.openUri(imageLink) }
+                        },
+                    )
+                }
+                imageWarning?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                imageSourceUrl?.let { imageUrl ->
+                    TextButton(onClick = { runCatching { uriHandler.openUri(imageUrl) } }) {
+                        Text("View image source")
+                    }
+                }
+                draft.sourceUrl?.let { sourceUrl ->
+                    TextButton(onClick = { runCatching { uriHandler.openUri(sourceUrl) } }) {
+                        Text("View original recipe")
+                    }
+                }
                 OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Recipe name") })
                 OutlinedTextField(servings, { servings = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Servings") }, singleLine = true)
                 OutlinedTextField(directions, { directions = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Directions") }, minLines = 3)
                 OutlinedTextField(notes, { notes = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Notes") }, minLines = 2)
+                OutlinedTextField(
+                    categories,
+                    { categories = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Categories, comma separated") },
+                    singleLine = true,
+                )
                 Text("Review ingredients", style = MaterialTheme.typography.titleMedium)
             }
             items(draft.ingredients.indices.toList(), key = { "${selectedCandidate.sourceKey}:ingredient:$it" }) { index ->
@@ -646,9 +997,12 @@ internal fun RecipeImportReviewScreen(
                                             servings = servings.trim().ifBlank { null },
                                             directions = directions.trim(),
                                             notes = notes.trim().ifBlank { null },
+                                            categories = categories.split(',').map(String::trim)
+                                                .filter(String::isNotBlank).distinctBy(String::lowercase),
+                                            imageSourceUrl = imageSourceUrl,
                                             canonicalIngredients = canonicalIngredients,
                                         )
-                                        workflows.saveReviewedRecipe.save(recipe)
+                                        workflows.saveReviewedRecipe.save(recipe, sourceImage)
                                     }
                                 }
                                 result.onSuccess { onSaved() }.onFailure {
@@ -670,6 +1024,8 @@ private fun CanonicalRecipeDraft.toRecipe(
     servings: String?,
     directions: String,
     notes: String?,
+    categories: List<String>,
+    imageSourceUrl: String?,
     canonicalIngredients: List<dev.kitchenapp.core.domain.ingredient.Ingredient>,
 ): Recipe = Recipe(
     name = name,
@@ -692,6 +1048,11 @@ private fun CanonicalRecipeDraft.toRecipe(
     categories = categories,
     sourceName = sourceName,
     sourceUrl = sourceUrl,
+    prepTimeSeconds = prepTimeSeconds,
+    cookTimeSeconds = cookTimeSeconds,
+    chillingTimeSeconds = chillingTimeSeconds,
+    totalTimeSeconds = totalTimeSeconds,
+    imageSourceUrl = imageSourceUrl,
 )
 
 private fun String.toDisplayText(): String = this
@@ -702,6 +1063,17 @@ private fun String.toDisplayText(): String = this
     .replace("&lt;", "<")
     .replace("&gt;", ">")
     .replace("&amp;", "&")
+
+private fun Long.formatRecipeTime(): String {
+    val totalMinutes = (this + 59) / 60
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours == 0L -> "$totalMinutes min"
+        minutes == 0L -> "$hours hr"
+        else -> "$hours hr $minutes min"
+    }
+}
 
 private fun RecipeImportMode.label(): String = when (this) {
     RecipeImportMode.Url -> "URL"

@@ -8,15 +8,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import dev.kitchenapp.core.application.AddCanonicalIngredient
+import dev.kitchenapp.core.application.CreateRecipeCategory
+import dev.kitchenapp.core.application.DeleteRecipe
 import dev.kitchenapp.core.application.GetRecipe
+import dev.kitchenapp.core.application.GetRecipeImage
+import dev.kitchenapp.core.application.ListRecipeCategories
+import dev.kitchenapp.core.application.LoadRecipeImage
 import dev.kitchenapp.core.application.PreviewRecipeImport
 import dev.kitchenapp.core.application.RecipeLibraryUseCases
 import dev.kitchenapp.core.application.SaveReviewedRecipe
+import dev.kitchenapp.core.application.RenameRecipeCategory
+import dev.kitchenapp.core.application.RemoveRecipeCategory
 import dev.kitchenapp.core.application.SearchRecipes
 import dev.kitchenapp.data.database.AndroidKitchenDatabase
 import dev.kitchenapp.data.database.SqlDelightKitchenRepository
 import dev.kitchenapp.data.database.SqlDelightRecipeRepository
 import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
+import dev.kitchenapp.data.importers.DefaultRecipeImageLoader
 import dev.kitchenapp.data.importers.KtorRecipePageFetcher
 import dev.kitchenapp.data.importers.archive.AndroidContentResolverArchiveReader
 import dev.kitchenapp.sharedui.KitchenApp
@@ -45,19 +53,27 @@ class MainActivity : ComponentActivity() {
         val database = AndroidKitchenDatabase.open(applicationContext)
         val recipes = SqlDelightRecipeRepository(database)
         val kitchen = SqlDelightKitchenRepository(database)
+        val archiveReader = AndroidContentResolverArchiveReader(contentResolver)
         val workflows = RecipeLibraryUseCases(
             searchRecipes = SearchRecipes(recipes),
             getRecipe = GetRecipe(recipes),
+            getRecipeImage = GetRecipeImage(recipes),
             saveReviewedRecipe = SaveReviewedRecipe(recipes, kitchen),
             addCanonicalIngredient = AddCanonicalIngredient(kitchen),
             previewRecipeImport = PreviewRecipeImport(
                 gateway = DefaultRecipeImportGateway(
-                    archiveReader = AndroidContentResolverArchiveReader(contentResolver),
+                    archiveReader = archiveReader,
                     pageFetcher = KtorRecipePageFetcher(),
                 ),
                 recipes = recipes,
                 kitchen = kitchen,
             ),
+            deleteRecipe = DeleteRecipe(recipes),
+            listRecipeCategories = ListRecipeCategories(recipes),
+            createRecipeCategory = CreateRecipeCategory(recipes),
+            renameRecipeCategory = RenameRecipeCategory(recipes),
+            removeRecipeCategory = RemoveRecipeCategory(recipes),
+            loadRecipeImage = LoadRecipeImage(DefaultRecipeImageLoader(archiveReader)),
         )
 
         setContent {

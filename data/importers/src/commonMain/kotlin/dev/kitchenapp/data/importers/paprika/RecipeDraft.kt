@@ -21,4 +21,9 @@ data class RecipeDraft(
     val sourceUrl: String?,
     val photoFileName: String?,
     val photoHash: String?,
+    val prepTimeSeconds: Long? = null,
+    val cookTimeSeconds: Long? = null,
+    val chillingTimeSeconds: Long? = null,
+    val totalTimeSeconds: Long? = null,
+    val imageSourceUrl: String? = null,
 )

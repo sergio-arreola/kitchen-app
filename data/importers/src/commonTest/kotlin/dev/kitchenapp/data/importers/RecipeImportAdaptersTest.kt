@@ -43,6 +43,38 @@ class RecipeImportAdaptersTest {
     }
 
     @Test
+    fun `normalizes yield and captures recipe times and image URL`() {
+        val record = UrlRecipeImporter().import(
+            page(
+                body = """
+                    <script type="application/ld+json">
+                    {
+                      "@type":"Recipe",
+                      "name":"Homemade Cranberry Sauce",
+                      "recipeYield":["6","6 servings"],
+                      "prepTime":"PT5M",
+                      "cookTime":"PT15M",
+                      "totalTime":"PT20M",
+                      "image":{"@type":"ImageObject","url":"https://images.example.test/cranberry.jpg"},
+                      "recipeIngredient":["1 cup cranberries"],
+                      "recipeInstructions":"Simmer."
+                    }
+                    </script>
+                    <span>Chilling Time: 2 hrs</span>
+                """.trimIndent(),
+            ),
+        ).single()
+
+        val success = assertIs<UrlRecipeImportRecord.Success>(record)
+        assertEquals("6 servings", success.draft.servings)
+        assertEquals(300L, success.draft.prepTimeSeconds)
+        assertEquals(900L, success.draft.cookTimeSeconds)
+        assertEquals(7_200L, success.draft.chillingTimeSeconds)
+        assertEquals(1_200L, success.draft.totalTimeSeconds)
+        assertEquals("https://images.example.test/cranberry.jpg", success.draft.imageSourceUrl)
+    }
+
+    @Test
     fun `keeps incomplete structured recipe as a warned draft`() {
         val record = UrlRecipeImporter().import(
             page(body = """<script type="application/ld+json">{"@type":"Recipe","name":"Plain bread"}</script>"""),
