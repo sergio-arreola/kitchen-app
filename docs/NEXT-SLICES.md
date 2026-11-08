@@ -1,6 +1,6 @@
 # Implementation Slices and Gates
 
-This document records the original slice plan and its implementation gates. Slices 1–11 are implemented. Completed slice descriptions remain as a record of scope and acceptance criteria.
+This document records implementation scope and acceptance gates. Slices 1–11 are implemented; Slice 12 is in progress. Completed slice descriptions remain as a record of scope and acceptance criteria.
 
 ## Roadmap status
 
@@ -18,8 +18,8 @@ This document records the original slice plan and its implementation gates. Slic
 | 9 | Local SQLite persistence | Implemented |
 | 10 | Application workflows and cooking transactions | Implemented |
 | 11 | URL/JSON-LD and manual recipe import | Implemented |
-| 12 | Android-first product UI and desktop engineering UI | Planned |
-| 13 | Backup/export, offline acceptance, and V1 closeout | Planned |
+| 12 | Android-first product UI and desktop engineering UI | In progress |
+| 13 | Backup/export, offline acceptance, and V1 closeout | Planned; target release 1.0.0 |
 
 The sequence keeps domain decisions and the recommendation engine testable before growing the UI. The product target is Android; Desktop/JVM remains the development and inspection target. iOS portability is an architectural goal, not a V1 delivery requirement. External recipe discovery, barcode/photo/receipt recognition, cloud sync, household sharing, and AI recipe generation are later work.
 
@@ -471,7 +471,7 @@ After the domain, simulation gate, persistence, and application workflows are
 stable, build the Compose flows. Android is the V1 product. Desktop is mainly
 for importing and inspecting larger libraries and testing kitchen scenarios.
 Implement this slice as the ordered PRs below. Each PR must receive independent
-review, pass its listed verification and the repository `check`/CI gate, and be
+review, pass its listed verification and repository check/CI gate, and be
 merged before work begins on the next PR. Keep each PR focused on its own user
 flow; do not carry unreviewed follow-up work into the next branch.
 
@@ -490,7 +490,7 @@ future optional natural-language interpreter is added.
 
 **Independent review and verification:** Review module boundaries and platform
 entry points. Run the relevant shared and platform compilation/check tasks and
-`./gradlew check`; launch both targets and verify the shell plus each common
+./gradlew check; launch both targets and verify the shell plus each common
 state. Merge before PR 12.2.
 
 ### PR 12.2 — Recipe library, import, and review
@@ -502,11 +502,67 @@ state. Merge before PR 12.2.
 
 **Independent review and verification:** Review that UI depends on application
 workflows rather than database queries and that failures remain reviewable.
-Run importer/application tests and `./gradlew check`; exercise successful,
+Run importer/application tests and ./gradlew check; exercise successful,
 partial, failed, duplicate, and offline browse/edit flows on Android. Merge
 before PR 12.3.
 
-### PR 12.3 — Kitchen setup and inventory
+### PR 12.3 — Recipe library management and imported metadata
+
+Complete the V1 recipe-library actions and preserve useful metadata as recipes
+move from source import into local storage.
+
+- Permanently delete a recipe after explicit confirmation. Trash and restore
+  are post-V1 features.
+- Organize recipes using All Recipes, Most Recent, custom categories, and
+  Uncategorized views. Allow users to create, rename, apply, and remove
+  category labels; removing a label must not delete its recipes.
+- Record an imported-at timestamp when a URL, Paprika, or manual recipe is
+  successfully saved. Most Recent is ordered newest-first by that timestamp;
+  later edits do not change import recency. Legacy recipes with no known import
+  time remain un-timestamped and follow timestamped entries; migration time is
+  not presented as their import time.
+- Capture and display prep, cook, and total times when a source supplies them.
+  Preserve missing values as unknown; do not infer prep or total time from
+  cook time. Retain distinct source-provided chilling/rest time where present.
+- Preserve source images for offline recipe details. For URL imports, capture
+  the Schema.org image URL and retain a local image copy when it can be fetched.
+  For Paprika imports, copy the referenced archive photo into app-managed
+  storage. Keep the original recipe URL and image source URL; make the displayed
+  image open its source and provide a separate link to the original recipe.
+  If an image cannot be fetched or copied, keep its source link and show a
+  reviewable warning.
+- Normalize duplicate yield values and avoid adding a second servings label in
+  recipe details. Cover both new imports and legacy stored values: the cranberry
+  sauce source shows one canonical value (6 servings), not “Serves 6, 6
+  servings,” while meaningful ranges such as 4–6 servings remain intact.
+
+Use the following pages as import acceptance cases without committing their
+recipe text or image files:
+
+- Sugar Spun Run Homemade Cranberry Sauce:
+  https://sugarspunrun.com/homemade-cranberry-sauce/
+  Expected source metadata: prep 5 minutes, cook 15 minutes, total 20 minutes,
+  chilling 2 hours, and 6 servings. Chilling remains distinct from the stated
+  total time.
+- Ballymaloe Homemade Sausage Rolls:
+  https://ballymaloefoods.ie/recipes/homemade-sausage-rolls-with-ballymaloe-original-relish/
+  Expected page metadata includes 45 minutes cooking time and 8 servings;
+  do not invent prep or total values when absent.
+- Additional URL import cases:
+  https://cooking.nytimes.com/recipes/1020828-lemony-shrimp-and-bean-stew
+  https://food52.com/recipes/78419-sheet-pan-croquembouche
+  Use small, self-authored structured-data fixtures for deterministic tests and
+  live pages for manual smoke checks when accessible.
+
+**Independent review and verification:** Review recipe deletion and category
+use cases, metadata persistence/migrations, source-image ownership, and offline
+display. Run importer, application, and database tests plus ./gradlew check.
+On Android, verify deletion confirmation, category assignment/filtering,
+Uncategorized and Most Recent results across URL/Paprika/manual imports, detail
+times, offline image display and source links, image-failure review, and the
+servings regression. Merge before PR 12.4.
+
+### PR 12.4 — Kitchen setup and inventory
 
 - Build and edit inventory across pantry, refrigerator, freezer, and custom
   locations.
@@ -514,10 +570,10 @@ before PR 12.3.
 
 **Independent review and verification:** Review that edits use application
 use cases and preserve tracking/rule semantics. Run affected tests and
-`./gradlew check`; exercise add, edit, move, and configuration flows on Android,
-including empty and error states. Merge before PR 12.4.
+./gradlew check; exercise add, edit, move, and configuration flows on Android,
+including empty and error states. Merge before PR 12.5.
 
-### PR 12.4 — Recommendations and shopping
+### PR 12.5 — Recommendations and shopping
 
 - Ask what can be made using structured filters available offline.
 - Show ranked recipes with explanations for readiness, missing or uncertain
@@ -526,11 +582,11 @@ including empty and error states. Merge before PR 12.4.
 
 **Independent review and verification:** Review recommendation explanations
 against matcher output; never present an unexplained score. Run matching,
-application, and shopping tests plus `./gradlew check`; exercise filtered
+application, and shopping tests plus ./gradlew check; exercise filtered
 results, no-result, explanation, and shopping flows on Android. Merge before
-PR 12.5.
+PR 12.6.
 
-### PR 12.5 — Cooking and leftovers
+### PR 12.6 — Cooking and leftovers
 
 - Start a non-mutating cooking session, confirm consumption explicitly, and
   optionally record leftovers.
@@ -538,11 +594,11 @@ PR 12.5.
 
 **Independent review and verification:** Review explicit confirmation and
 application transaction boundaries. Run cooking workflow tests and
-`./gradlew check`; exercise cancel, confirm, quantity adjustment, and optional
+./gradlew check; exercise cancel, confirm, quantity adjustment, and optional
 leftover flows on Android, including persisted state after app restart. Merge
-before PR 12.6.
+before PR 12.7.
 
-### PR 12.6 — Desktop engineering workspace
+### PR 12.7 — Desktop engineering workspace
 
 - Provide Desktop flows for importing and inspecting larger recipe libraries
   and testing kitchen scenarios using the shared application/presentation
@@ -551,7 +607,7 @@ before PR 12.6.
   as the V1 product target.
 
 **Independent review and verification:** Review platform separation and shared
-logic choices. Run Desktop/JVM tests and `./gradlew check`; launch Desktop and
+logic choices. Run Desktop/JVM tests and ./gradlew check; launch Desktop and
 exercise library import/inspection and kitchen scenario flows.
 
 ### Slice 12 completion gate
@@ -559,26 +615,29 @@ exercise library import/inspection and kitchen scenario flows.
 After all PRs have been independently reviewed, verified, and merged, exercise
 end-to-end user journeys on Android and engineering/import flows on Desktop.
 Verify loading, empty, error, review, and success states throughout. Confirm
-recommendations show their reasons and structured filters remain available
-offline.
+recipe delete/category/recency and metadata flows work offline, recommendations
+show their reasons, and structured filters remain available offline.
 
 ---
 
 ## Slice 13 — Backup, offline acceptance, and V1 closeout
 
 Make the local-first contract dependable before calling the first release
-complete.
+complete. The V1 release target is 1.0.0 after this slice passes its acceptance
+gate.
 
 ### Components
 
-- Versioned export/import for the app's recipes, inventory, rules, equipment,
+- Versioned export/import for recipes, categories, import timestamps, timing
+  metadata, image assets and their source links, inventory, rules, equipment,
   and cook/leftover history.
 - Restore preview, validation, and explicit duplicate/conflict behavior.
 - Data-integrity checks and documented migration/backup recovery procedures.
-- End-to-end acceptance corpus spanning import, normalization, inventory,
-  recommendations, cooking, depletion, leftovers, and shopping.
-- Clear privacy disclosure for optional network-backed URL retrieval and any
-  future interpretation service.
+- End-to-end acceptance corpus spanning import, normalization, image/time
+  metadata, category organization, inventory, recommendations, cooking,
+  depletion, leftovers, and shopping.
+- Clear privacy disclosure for optional network-backed URL and image retrieval
+  and any future interpretation service.
 
 Cloud sync, household sharing, external recipe discovery, barcode/photo/receipt
 recognition, nutrition optimization, and generated recipes remain outside V1.
@@ -587,16 +646,42 @@ recognition, nutrition optimization, and generated recipes remain outside V1.
 
 - Core recipe, inventory, matching, cooking, and shopping workflows work
   offline.
-- Paprika and URL/manual imports produce reviewable canonical recipes.
+- Paprika and URL/manual imports produce reviewable canonical recipes with
+  preserved source attribution and available source images.
+- Recipe deletion, category organization, imported-at Most Recent, and source
+  prep/cook/total times work on Android.
+- A missing source value stays unknown rather than being guessed. The cranberry
+  sauce yield displays once as 6 servings.
 - Reviewed corpora reach at least 95% Paprika import success and 95%
   ingredient normalization accuracy.
 - The matching benchmark has zero known quantity-related false “Ready Now”
   outcomes.
 - Recommendations explain their fit and constraints.
-- Cooking, inventory, leftovers, and backup/restore survive app restart.
+- Recipes, images, inventory, leftovers, and backup/restore survive app restart.
 - No account or subscription is required for the core local experience.
 
 ---
+
+## Post-V1 refinements and versioning
+
+After Slice 13, the planned V1 release is 1.0.0. Backward-compatible feature
+releases use the MINOR component (beginning with 1.1.0); backward-compatible
+bug fixes use PATCH; incompatible changes to the declared public contract use
+MAJOR, following [Semantic Versioning 2.0.0](https://semver.org/).
+
+The following library refinements are deferred to 1.1.0 and later:
+
+- Ratings and Top Rated views.
+- Favorites.
+- Named Cookbook collections such as Thanksgiving, Christmas, and Hosting.
+- Trash and restore instead of permanent deletion.
+- List/Grid view switching.
+- The full sort menu: Name, Rating, Most Recent, Prep Time, Cook Time, Total
+  Time, and Servings, each ascending or descending. The V1 Most Recent view
+  remains available; the later work adds it to the general sort menu.
+
+Other compatible refinements can be scheduled into later MINOR releases as
+their scope is agreed.
 
 ## When to activate reserved dependencies
 
