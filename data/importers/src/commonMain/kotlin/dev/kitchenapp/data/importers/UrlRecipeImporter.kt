@@ -3,6 +3,7 @@ package dev.kitchenapp.data.importers
 import dev.kitchenapp.core.application.RecipePage
 import dev.kitchenapp.data.importers.ingredient.IngredientLineParser
 import dev.kitchenapp.data.importers.paprika.ImportOutcome
+import dev.kitchenapp.core.domain.recipe.normalizeRecipeServings
 import dev.kitchenapp.data.importers.paprika.RecipeDraft
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -68,7 +69,7 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
         }
 
         if (candidates.size == 1) {
-            return candidates.single().toDraft(page, emptyList())
+            return candidates.single().withPageChillingTime(page.body).toDraft(page, emptyList())
         }
         if (candidates.size > 1) {
             return UrlRecipeImportRecord.NeedsManualReview(
@@ -79,7 +80,7 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
 
         val microdata = parseMicrodata(page)
         if (microdata != null) {
-            return microdata.toDraft(
+            return microdata.withPageChillingTime(page.body).toDraft(
                 page,
                 if (malformedJsonLd) listOf("Malformed JSON-LD was ignored; imported Schema.org microdata instead.") else emptyList(),
             )
@@ -116,23 +117,47 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
         val ingredients = this["recipeIngredient"].asTextList()
         val directions = this["recipeInstructions"].instructionText()
         val categories = this["recipeCategory"].asTextList()
+        val prepTime = this["prepTime"].asText()
+        val cookTime = this["cookTime"].asText()
+        val chillingTime = (this["chillingTime"] ?: this["restTime"]).asText()
+        val totalTime = this["totalTime"].asText()
+        val prepTimeSeconds = parseRecipeTimeSeconds(prepTime)
+        val cookTimeSeconds = parseRecipeTimeSeconds(cookTime)
+        val chillingTimeSeconds = parseRecipeTimeSeconds(chillingTime)
+        val totalTimeSeconds = parseRecipeTimeSeconds(totalTime)
         val warnings = buildList {
             if (ingredients.isEmpty()) add("missing ingredients")
             if (directions.isBlank()) add("missing directions")
+            if (prepTime.isNotBlank() && prepTimeSeconds == null) add("unrecognized prep time")
+            if (cookTime.isNotBlank() && cookTimeSeconds == null) add("unrecognized cook time")
+            if (chillingTime.isNotBlank() && chillingTimeSeconds == null) add("unrecognized chilling time")
+            if (totalTime.isNotBlank() && totalTimeSeconds == null) add("unrecognized total time")
         }
         return RecipeFields(
             name = name,
-            servings = this["recipeYield"].asTextList().joinToString(", ").ifBlank { null },
+            servings = normalizeRecipeServings(this["recipeYield"].asTextList()),
             ingredients = ingredients,
             directions = directions,
             notes = this["description"].asText().ifBlank { null },
             categories = categories,
+            prepTimeSeconds = prepTimeSeconds,
+            cookTimeSeconds = cookTimeSeconds,
+            chillingTimeSeconds = chillingTimeSeconds,
+            totalTimeSeconds = totalTimeSeconds,
+            imageSourceUrl = this["image"].imageUrl(),
             warnings = warnings,
         )
     }
 
     private fun JsonElement?.asText(): String =
         (this as? JsonPrimitive)?.contentOrNull.orEmpty()
+
+    private fun JsonElement?.imageUrl(): String? = when (this) {
+        is JsonPrimitive -> contentOrNull?.trim()?.takeIf(String::isNotBlank)
+        is JsonArray -> firstNotNullOfOrNull { it.imageUrl() }
+        is JsonObject -> (this["url"] ?: this["contentUrl"] ?: this["@id"]).imageUrl()
+        else -> null
+    }
 
     private fun JsonElement?.asTextList(): List<String> = when (this) {
         is JsonArray -> mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) }
@@ -158,6 +183,8 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
             val attributes = match.groupValues[2]
             val property = ITEMPROP.find(attributes)?.groupValues?.get(1) ?: return@forEach
             val content = CONTENT.find(attributes)?.groupValues?.get(1)
+                ?: DATETIME.find(attributes)?.groupValues?.get(1)
+                ?: if (property == "image") SRC.find(attributes)?.groupValues?.get(1) else null
             val value = content ?: if (tag in VOID_TAGS) {
                 ""
             } else {
@@ -173,15 +200,43 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
             if (ingredients.isEmpty()) add("missing ingredients")
             if (directions.isBlank()) add("missing directions")
         }
+        val prepTime = props["prepTime"]?.firstOrNull().orEmpty()
+        val cookTime = props["cookTime"]?.firstOrNull().orEmpty()
+        val chillingTime = props["chillingTime"]?.firstOrNull() ?: props["restTime"]?.firstOrNull().orEmpty()
+        val totalTime = props["totalTime"]?.firstOrNull().orEmpty()
+        val prepTimeSeconds = parseRecipeTimeSeconds(prepTime)
+        val cookTimeSeconds = parseRecipeTimeSeconds(cookTime)
+        val chillingTimeSeconds = parseRecipeTimeSeconds(chillingTime)
+        val totalTimeSeconds = parseRecipeTimeSeconds(totalTime)
+        val timeWarnings = buildList {
+            if (prepTime.isNotBlank() && prepTimeSeconds == null) add("unrecognized prep time")
+            if (cookTime.isNotBlank() && cookTimeSeconds == null) add("unrecognized cook time")
+            if (chillingTime.isNotBlank() && chillingTimeSeconds == null) add("unrecognized chilling time")
+            if (totalTime.isNotBlank() && totalTimeSeconds == null) add("unrecognized total time")
+        }
         return RecipeFields(
             name = name,
-            servings = props["recipeYield"]?.joinToString(", ")?.ifBlank { null },
+            servings = normalizeRecipeServings(props["recipeYield"].orEmpty()),
             ingredients = ingredients,
             directions = directions,
             notes = props["description"]?.firstOrNull(),
             categories = props["recipeCategory"].orEmpty(),
-            warnings = warnings,
+            prepTimeSeconds = prepTimeSeconds,
+            cookTimeSeconds = cookTimeSeconds,
+            chillingTimeSeconds = chillingTimeSeconds,
+            totalTimeSeconds = totalTimeSeconds,
+            imageSourceUrl = props["image"]?.firstOrNull(),
+            warnings = warnings + timeWarnings,
         )
+    }
+
+    private fun RecipeFields.withPageChillingTime(pageBody: String): RecipeFields {
+        if (chillingTimeSeconds != null) return this
+        val plainText = pageBody.toPlainText()
+        val sourceValue = CHILLING_TIME.find(plainText)?.groupValues?.get(1)
+            ?: REST_TIME.find(plainText)?.groupValues?.get(1)
+            ?: return this
+        return copy(chillingTimeSeconds = parseRecipeTimeSeconds(sourceValue))
     }
 
     private fun RecipeFields.toDraft(page: RecipePage, extraWarnings: List<String>): UrlRecipeImportRecord {
@@ -200,6 +255,11 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
             sourceUrl = page.finalUrl,
             photoFileName = null,
             photoHash = null,
+            prepTimeSeconds = prepTimeSeconds,
+            cookTimeSeconds = cookTimeSeconds,
+            chillingTimeSeconds = chillingTimeSeconds,
+            totalTimeSeconds = totalTimeSeconds,
+            imageSourceUrl = imageSourceUrl,
         )
         return if (warnings.isEmpty()) {
             UrlRecipeImportRecord.Success(page.requestedUrl, draft)
@@ -225,6 +285,11 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
         val directions: String,
         val notes: String?,
         val categories: List<String>,
+        val prepTimeSeconds: Long?,
+        val cookTimeSeconds: Long?,
+        val chillingTimeSeconds: Long?,
+        val totalTimeSeconds: Long?,
+        val imageSourceUrl: String?,
         val warnings: List<String>,
     )
 
@@ -237,6 +302,10 @@ class UrlRecipeImporter : RecipeImporter<RecipePage, UrlRecipeImportRecord> {
         val OPENING_TAG = Regex("(?is)<([a-z][\\w:-]*)\\b([^>]*)>")
         val ITEMPROP = Regex("(?is)\\bitemprop\\s*=\\s*[\"']([^\"']+)[\"']")
         val CONTENT = Regex("(?is)\\bcontent\\s*=\\s*[\"']([^\"']*)[\"']")
+        val DATETIME = Regex("""(?is)\bdatetime\s*=\s*["']([^"']*)["']""")
+        val SRC = Regex("""(?is)\bsrc\s*=\s*["']([^"']*)["']""")
+        val CHILLING_TIME = Regex("""(?i)chilling\s+time\s*:?\s*(\d+(?:\.\d+)?\s*(?:days?|hours?|hrs?|minutes?|mins?|seconds?|secs?))""")
+        val REST_TIME = Regex("""(?i)rest\s+time\s*:?\s*(\d+(?:\.\d+)?\s*(?:days?|hours?|hrs?|minutes?|mins?|seconds?|secs?))""")
         val VOID_TAGS = setOf("area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr")
     }
 }

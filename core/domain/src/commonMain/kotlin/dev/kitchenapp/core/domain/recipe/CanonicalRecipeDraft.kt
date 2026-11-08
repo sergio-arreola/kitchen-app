@@ -20,6 +20,11 @@ data class CanonicalRecipeDraft(
     val externalId: String? = null,
     val sourceName: String? = null,
     val sourceUrl: String? = null,
+    val prepTimeSeconds: Long? = null,
+    val cookTimeSeconds: Long? = null,
+    val chillingTimeSeconds: Long? = null,
+    val totalTimeSeconds: Long? = null,
+    val imageSourceUrl: String? = null,
 ) {
     init {
         require(name.isNotBlank()) { "Recipe name cannot be blank" }

@@ -33,18 +33,33 @@ DELETE FROM ingredient WHERE id = ?;
 
 selectRecipeById:
 SELECT id, name, servings, directions_text AS directionsText, notes,
-       source_name AS sourceName, source_url AS sourceUrl
+       source_name AS sourceName, source_url AS sourceUrl,
+       prep_time_seconds AS prepTimeSeconds, cook_time_seconds AS cookTimeSeconds,
+       chilling_time_seconds AS chillingTimeSeconds, total_time_seconds AS totalTimeSeconds,
+       imported_at AS importedAt, image_source_url AS imageSourceUrl
 FROM recipe WHERE id = ?;
+
+selectRecipeImageById:
+SELECT bytes, media_type AS mediaType FROM recipe_image WHERE recipe_id = ?;
+
+insertRecipeImage:
+INSERT OR REPLACE INTO recipe_image(recipe_id, bytes, media_type) VALUES (?, ?, ?);
 
 selectAllRecipes:
 SELECT * FROM recipe ORDER BY name COLLATE NOCASE, id;
 
 insertRecipe:
-INSERT INTO recipe(id, name, servings, directions_text, notes, source_name, source_url)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO recipe(
+  id, name, servings, directions_text, notes, source_name, source_url,
+  prep_time_seconds, cook_time_seconds, chilling_time_seconds, total_time_seconds,
+  imported_at, image_source_url
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateRecipe:
-UPDATE recipe SET name = ?, servings = ?, directions_text = ?, notes = ?, source_name = ?, source_url = ?
+UPDATE recipe SET
+  name = ?, servings = ?, directions_text = ?, notes = ?, source_name = ?, source_url = ?,
+  prep_time_seconds = ?, cook_time_seconds = ?, chilling_time_seconds = ?, total_time_seconds = ?,
+  imported_at = ?, image_source_url = ?
 WHERE id = ?;
 
 deleteRecipe:
@@ -58,6 +73,15 @@ INSERT INTO recipe_category(recipe_id, position, name) VALUES (?, ?, ?);
 
 selectRecipeCategories:
 SELECT name FROM recipe_category WHERE recipe_id = ? ORDER BY position;
+
+selectAllRecipeCategoryNames:
+SELECT name FROM recipe_category_catalog ORDER BY name COLLATE NOCASE, name;
+
+insertRecipeCategoryName:
+INSERT OR IGNORE INTO recipe_category_catalog(name) VALUES (?);
+
+deleteRecipeCategoryName:
+DELETE FROM recipe_category_catalog WHERE name = ?;
 
 deleteRecipeIngredients:
 DELETE FROM recipe_ingredient WHERE recipe_id = ?;

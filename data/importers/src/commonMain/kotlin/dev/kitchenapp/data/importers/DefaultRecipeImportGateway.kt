@@ -3,6 +3,7 @@ package dev.kitchenapp.data.importers
 import dev.kitchenapp.core.application.RecipeImportCandidate
 import dev.kitchenapp.core.application.RecipeImportGateway
 import dev.kitchenapp.core.application.RecipeImportOutcome
+import dev.kitchenapp.core.application.RecipeImportImageSource
 import dev.kitchenapp.core.application.RecipeImportRequest
 import dev.kitchenapp.core.application.RecipePageFetcher
 import dev.kitchenapp.core.domain.identifiers.RecipeId
@@ -71,6 +72,16 @@ class DefaultRecipeImportGateway(
                 reason = record.reasonOrNull(),
                 suggestedName = (record as? UrlRecipeImportRecord.NeedsManualReview)?.suggestedName,
                 duplicateOf = preview.duplicateOf,
+                imageSource = when (request) {
+                    is RecipeImportRequest.Url ->
+                        record.draft?.imageSourceUrl?.let(RecipeImportImageSource::Url)
+                    is RecipeImportRequest.PaprikaArchive ->
+                        record.draft?.photoFileName?.let { fileName ->
+                            val entryName = if (fileName.startsWith("photos/")) fileName else "photos/$fileName"
+                            RecipeImportImageSource.PaprikaArchiveEntry(request.source, entryName)
+                        }
+                    is RecipeImportRequest.Manual -> null
+                },
             )
         }
     }

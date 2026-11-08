@@ -160,6 +160,10 @@ internal fun KitchenAppNavigation(
                                 recipeId = key.recipeId,
                                 onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
                                 onSaved = { recipeRefreshKey++ },
+                                onDeleted = {
+                                    recipeRefreshKey++
+                                    if (backStack.size > 1) backStack.removeLastOrNull()
+                                },
                             )
                         }
 

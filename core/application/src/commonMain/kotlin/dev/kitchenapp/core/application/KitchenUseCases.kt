@@ -5,7 +5,11 @@ import dev.kitchenapp.core.domain.identifiers.IngredientId
 import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.inventory.FreshnessPolicy
 import dev.kitchenapp.core.domain.recipe.Recipe
+import dev.kitchenapp.core.domain.recipe.RecipeImage
+import dev.kitchenapp.core.domain.recipe.normalizeRecipeServings
+import dev.kitchenapp.core.domain.time.DomainInstant
 import dev.kitchenapp.core.domain.time.DomainLocalDate
+import kotlin.time.Clock
 import dev.kitchenapp.core.engine.matching.MealMatchInput
 import dev.kitchenapp.core.engine.matching.MealQuery
 import dev.kitchenapp.core.engine.matching.RecipeMatch
@@ -23,9 +27,29 @@ data class SuggestionOptions(
 
 /** Read-only recipe browse and search. */
 class SearchRecipes(private val recipes: RecipeRepository) {
-    fun search(query: String): List<Recipe> {
+    fun search(
+        query: String,
+        filter: RecipeLibraryFilter = RecipeLibraryFilter.All,
+    ): List<Recipe> {
         val term = query.trim()
-        return recipes.getAll().filter { term.isEmpty() || it.name.contains(term, ignoreCase = true) }
+        val filtered = recipes.getAll().filter { recipe ->
+            (term.isEmpty() || recipe.name.contains(term, ignoreCase = true)) &&
+                when (filter) {
+                    RecipeLibraryFilter.All, RecipeLibraryFilter.MostRecent -> true
+                    RecipeLibraryFilter.Uncategorized -> recipe.categories.isEmpty()
+                    is RecipeLibraryFilter.Category -> recipe.categories.any {
+                        it.equals(filter.name, ignoreCase = true)
+                    }
+                }
+        }
+        return if (filter == RecipeLibraryFilter.MostRecent) {
+            filtered.filter { it.importedAt != null }
+                .sortedByDescending { it.importedAt?.value?.toString().orEmpty() }
+                .sortedBy { it.name.lowercase() } +
+                filtered.filter { it.importedAt == null }.sortedBy { it.name.lowercase() }
+        } else {
+            filtered
+        }
     }
 }
 
@@ -85,13 +109,23 @@ class ConfigureKitchen(private val kitchen: KitchenRepository) {
 class SaveReviewedRecipe(
     private val recipes: RecipeRepository,
     private val kitchen: KitchenRepository,
+    private val clock: Clock = Clock.System,
 ) {
-    fun save(recipe: Recipe): Recipe {
+    fun save(recipe: Recipe, image: RecipeImage? = null): Recipe {
         val knownIngredients = kitchen.load().ingredients.map { it.id }.toSet()
         require(recipe.ingredients.all { it.ingredientId in knownIngredients }) {
             "Review every recipe ingredient against the kitchen before saving"
         }
-        recipes.save(recipe)
-        return recipe
+        val existing = recipes.get(recipe.id)
+        val normalized = recipe.copy(
+            servings = recipe.servings?.let { normalizeRecipeServings(listOf(it)) },
+            categories = recipe.categories.map(String::trim)
+                .filter(String::isNotBlank)
+                .distinctBy(String::lowercase),
+            importedAt = recipe.importedAt ?: existing?.importedAt
+                ?: if (existing == null) DomainInstant(clock.now()) else null,
+        )
+        recipes.saveWithImage(normalized, image)
+        return normalized
     }
 }

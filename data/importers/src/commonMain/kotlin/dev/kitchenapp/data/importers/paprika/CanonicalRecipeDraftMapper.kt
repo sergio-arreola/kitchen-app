@@ -39,5 +39,10 @@ fun RecipeDraft.toCanonicalRecipeDraft(
         externalId = externalId,
         sourceName = sourceName,
         sourceUrl = sourceUrl,
+        prepTimeSeconds = prepTimeSeconds,
+        cookTimeSeconds = cookTimeSeconds,
+        chillingTimeSeconds = chillingTimeSeconds,
+        totalTimeSeconds = totalTimeSeconds,
+        imageSourceUrl = imageSourceUrl,
     )
 }

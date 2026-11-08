@@ -15,7 +15,9 @@ import dev.kitchenapp.core.domain.inventory.KitchenLocation
 import dev.kitchenapp.core.domain.ingredient.Ingredient
 import dev.kitchenapp.core.domain.math.Rational
 import dev.kitchenapp.core.domain.recipe.Recipe
+import dev.kitchenapp.core.domain.recipe.RecipeImage
 import dev.kitchenapp.core.domain.recipe.RecipeIngredient
+import dev.kitchenapp.core.domain.time.DomainInstant
 import dev.kitchenapp.core.domain.time.DomainLocalDate
 import dev.kitchenapp.core.domain.units.UnitCode
 import dev.kitchenapp.data.database.generated.KitchenDatabase
@@ -24,6 +26,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class Slice9PersistenceTest {
     @Test
@@ -70,12 +73,21 @@ class Slice9PersistenceTest {
                 categories = listOf("Lunch", "Quick"),
                 sourceName = "Family recipe",
                 sourceUrl = "https://example.test/tomato-toast",
+                prepTimeSeconds = 300,
+                cookTimeSeconds = 900,
+                chillingTimeSeconds = 7_200,
+                totalTimeSeconds = 1_200,
+                imageSourceUrl = "https://images.example.test/tomato.jpg",
+                importedAt = DomainInstant(Instant.parse("2026-11-08T10:15:00Z")),
             )
             val recipes = SqlDelightRecipeRepository(database)
 
             recipes.save(recipe)
+            val image = RecipeImage(byteArrayOf(1, 2, 3, 4), "image/jpeg")
+            recipes.saveWithImage(recipe, image)
 
             assertEquals(recipe, recipes.get(recipe.id))
+            assertEquals(image, recipes.getRecipeImage(recipe.id))
             assertEquals(listOf(recipe), recipes.getAll())
 
             val updated = recipe.copy(notes = "Add basil before serving.", categories = listOf("Dinner"))
@@ -86,7 +98,41 @@ class Slice9PersistenceTest {
 
             recipes.delete(recipe.id)
             assertNull(recipes.get(recipe.id))
+            assertNull(recipes.getRecipeImage(recipe.id))
             assertTrue(recipes.getAll().isEmpty())
+        }
+    }
+
+    @Test
+    fun `category catalog can rename and remove labels without deleting recipes`() {
+        val (driver, database) = newDatabase()
+        driver.use {
+            val recipes = SqlDelightRecipeRepository(database)
+            val first = Recipe(
+                name = "Tomato toast",
+                ingredients = emptyList(),
+                directionsText = "Toast.",
+                categories = listOf("Dinner", "Quick"),
+            )
+            val second = Recipe(
+                name = "Bean soup",
+                ingredients = emptyList(),
+                directionsText = "Simmer.",
+                categories = listOf("Dinner"),
+            )
+            recipes.save(first)
+            recipes.save(second)
+            recipes.createCategory("Holiday")
+
+            assertEquals(setOf("Dinner", "Quick", "Holiday"), recipes.getCategories().toSet())
+
+            recipes.renameCategory("Dinner", "Supper")
+            recipes.removeCategory("Quick")
+
+            assertEquals(setOf("Supper", "Holiday"), recipes.getCategories().toSet())
+            assertEquals(listOf("Supper"), recipes.get(first.id)?.categories)
+            assertEquals(listOf("Supper"), recipes.get(second.id)?.categories)
+            assertEquals(2, recipes.getAll().size)
         }
     }
 

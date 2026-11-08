@@ -89,6 +89,10 @@ class Slice10WorkflowsTest {
         override fun getAll() = values
         override fun save(recipe: Recipe) = Unit
         override fun delete(id: dev.kitchenapp.core.domain.identifiers.RecipeId) = Unit
+        override fun getCategories() = values.flatMap { it.categories }.distinct()
+        override fun createCategory(name: String) = Unit
+        override fun renameCategory(oldName: String, newName: String) = Unit
+        override fun removeCategory(name: String) = Unit
     }
 
     private class FakeCooking(private val kitchen: FakeKitchen) : CookingRepository {
