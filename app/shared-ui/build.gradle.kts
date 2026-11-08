@@ -37,7 +37,9 @@ kotlin {
             implementation(libs.navigation3Runtime)
             implementation(libs.navigation3Ui)
             implementation(libs.material3AdaptiveNavigationSuite)
+            implementation(libs.material3AdaptiveNavigation3)
             implementation(libs.serializationCore)
+            implementation(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
