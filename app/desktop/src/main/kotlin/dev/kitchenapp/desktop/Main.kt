@@ -10,6 +10,11 @@ import dev.kitchenapp.core.application.DeleteRecipe
 import dev.kitchenapp.core.application.EditInventory
 import dev.kitchenapp.core.application.GetRecipe
 import dev.kitchenapp.core.application.GetRecipeImage
+import dev.kitchenapp.core.application.GetShoppingList
+import dev.kitchenapp.core.application.GetSuggestions
+import dev.kitchenapp.core.application.CreateShoppingList
+import dev.kitchenapp.core.application.SetShoppingListItemChecked
+import dev.kitchenapp.core.application.ClearShoppingList
 import dev.kitchenapp.core.application.ListRecipeCategories
 import dev.kitchenapp.core.application.LoadRecipeImage
 import dev.kitchenapp.core.application.PreviewRecipeImport
@@ -21,6 +26,7 @@ import dev.kitchenapp.core.application.SearchRecipes
 import dev.kitchenapp.data.database.JvmKitchenDatabase
 import dev.kitchenapp.data.database.SqlDelightKitchenRepository
 import dev.kitchenapp.data.database.SqlDelightRecipeRepository
+import dev.kitchenapp.data.database.SqlDelightShoppingListRepository
 import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
 import dev.kitchenapp.data.importers.DefaultRecipeImageLoader
 import dev.kitchenapp.data.importers.KtorRecipePageFetcher
@@ -38,6 +44,7 @@ fun main() = application {
     val database = JvmKitchenDatabase.open(File(databaseDirectory, "kitchen.db").absolutePath)
     val recipes = SqlDelightRecipeRepository(database)
     val kitchen = SqlDelightKitchenRepository(database)
+    val shoppingLists = SqlDelightShoppingListRepository(database)
     val archiveReader = ZipFileArchiveReader()
     val workflows = RecipeLibraryUseCases(
         searchRecipes = SearchRecipes(recipes),
@@ -62,6 +69,11 @@ fun main() = application {
         renameRecipeCategory = RenameRecipeCategory(recipes),
         removeRecipeCategory = RemoveRecipeCategory(recipes),
         loadRecipeImage = LoadRecipeImage(DefaultRecipeImageLoader(archiveReader)),
+        getSuggestions = GetSuggestions(recipes, kitchen),
+        createShoppingList = CreateShoppingList(kitchen, shoppingLists),
+        getShoppingList = GetShoppingList(shoppingLists),
+        setShoppingListItemChecked = SetShoppingListItemChecked(shoppingLists),
+        clearShoppingList = ClearShoppingList(shoppingLists),
     )
 
     Window(

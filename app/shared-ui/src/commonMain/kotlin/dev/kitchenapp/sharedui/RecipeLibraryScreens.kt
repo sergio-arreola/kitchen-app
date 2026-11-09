@@ -54,6 +54,8 @@ import dev.kitchenapp.core.application.RecipeImportRequest
 import dev.kitchenapp.core.application.RecipeLibraryFilter
 import dev.kitchenapp.core.application.RecipeLibraryUseCases
 import dev.kitchenapp.core.domain.ingredient.IngredientResolution
+import dev.kitchenapp.core.domain.household.EquipmentRequirement
+import dev.kitchenapp.core.domain.household.EquipmentRequirementKind
 import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.recipe.CanonicalRecipeDraft
 import dev.kitchenapp.core.domain.recipe.Recipe
@@ -360,6 +362,8 @@ internal fun RecipeDetailScreen(
     var directions by rememberSaveable(recipeId) { mutableStateOf("") }
     var notes by rememberSaveable(recipeId) { mutableStateOf("") }
     var categories by rememberSaveable(recipeId) { mutableStateOf("") }
+    var mealTypes by rememberSaveable(recipeId) { mutableStateOf("") }
+    var requiredEquipment by rememberSaveable(recipeId) { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var showDeleteConfirmation by rememberSaveable(recipeId) { mutableStateOf(false) }
@@ -407,6 +411,10 @@ internal fun RecipeDetailScreen(
                                 directions = loadedRecipe.directionsText
                                 notes = loadedRecipe.notes.orEmpty()
                                 categories = loadedRecipe.categories.joinToString(", ")
+                                mealTypes = loadedRecipe.mealTypes.joinToString(", ")
+                                requiredEquipment = loadedRecipe.equipmentRequirements
+                                    .filter { it.kind == EquipmentRequirementKind.REQUIRED }
+                                    .joinToString(", ") { it.equipment }
                                 editing = true
                             },
                         ) { Text("Edit") }
@@ -455,6 +463,20 @@ internal fun RecipeDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
+                OutlinedTextField(
+                    mealTypes,
+                    { mealTypes = it },
+                    label = { Text("Meal types, comma separated") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    requiredEquipment,
+                    { requiredEquipment = it },
+                    label = { Text("Required equipment, comma separated") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { editing = false; error = null }) { Text("Cancel") }
@@ -471,6 +493,10 @@ internal fun RecipeDetailScreen(
                                         notes = notes.trim().ifBlank { null },
                                         categories = categories.split(',').map(String::trim)
                                             .filter(String::isNotBlank).distinctBy(String::lowercase),
+                                        mealTypes = mealTypes.splitNames(),
+                                        equipmentRequirements = loadedRecipe.equipmentRequirements
+                                            .filter { it.kind != EquipmentRequirementKind.REQUIRED } +
+                                            requiredEquipment.toEquipmentRequirements(),
                                     )
                                     val result = withContext(Dispatchers.IO) {
                                         runSafely { workflows.saveReviewedRecipe.save(updated) }
@@ -528,6 +554,16 @@ internal fun RecipeDetailScreen(
                     }
                     if (loadedRecipe.categories.isNotEmpty()) {
                         Text("Categories: " + loadedRecipe.categories.joinToString(" · "))
+                    }
+                    if (loadedRecipe.mealTypes.isNotEmpty()) {
+                        Text("Meal types: " + loadedRecipe.mealTypes.joinToString(" · "))
+                    }
+                    if (loadedRecipe.equipmentRequirements.isNotEmpty()) {
+                        Text(
+                            "Equipment: " + loadedRecipe.equipmentRequirements.joinToString(" · ") {
+                                "${it.equipment} (${it.kind.name.lowercase()})"
+                            },
+                        )
                     }
                     Text("Ingredients", style = MaterialTheme.typography.titleMedium)
                 }
@@ -828,6 +864,8 @@ internal fun RecipeImportReviewScreen(
     var categories by rememberSaveable(selectedCandidate.sourceKey) {
         mutableStateOf(draft.categories.joinToString(", "))
     }
+    var mealTypes by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf("") }
+    var requiredEquipment by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf("") }
     var duplicateConfirmed by rememberSaveable(selectedCandidate.sourceKey) { mutableStateOf(false) }
     var sourceImage by remember(selectedCandidate.sourceKey) { mutableStateOf<RecipeImage?>(null) }
     var sourceImageBitmap by remember(sourceImage) { mutableStateOf<ImageBitmap?>(null) }
@@ -946,6 +984,20 @@ internal fun RecipeImportReviewScreen(
                     label = { Text("Categories, comma separated") },
                     singleLine = true,
                 )
+                OutlinedTextField(
+                    mealTypes,
+                    { mealTypes = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Meal types, comma separated") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    requiredEquipment,
+                    { requiredEquipment = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Required equipment, comma separated") },
+                    singleLine = true,
+                )
                 Text("Review ingredients", style = MaterialTheme.typography.titleMedium)
             }
             items(draft.ingredients.indices.toList(), key = { "${selectedCandidate.sourceKey}:ingredient:$it" }) { index ->
@@ -1000,6 +1052,8 @@ internal fun RecipeImportReviewScreen(
                                             categories = categories.split(',').map(String::trim)
                                                 .filter(String::isNotBlank).distinctBy(String::lowercase),
                                             imageSourceUrl = imageSourceUrl,
+                                            mealTypes = mealTypes.splitNames(),
+                                            equipmentRequirements = requiredEquipment.toEquipmentRequirements(),
                                             canonicalIngredients = canonicalIngredients,
                                         )
                                         workflows.saveReviewedRecipe.save(recipe, sourceImage)
@@ -1026,6 +1080,8 @@ private fun CanonicalRecipeDraft.toRecipe(
     notes: String?,
     categories: List<String>,
     imageSourceUrl: String?,
+    mealTypes: List<String>,
+    equipmentRequirements: List<EquipmentRequirement>,
     canonicalIngredients: List<dev.kitchenapp.core.domain.ingredient.Ingredient>,
 ): Recipe = Recipe(
     name = name,
@@ -1053,7 +1109,16 @@ private fun CanonicalRecipeDraft.toRecipe(
     chillingTimeSeconds = chillingTimeSeconds,
     totalTimeSeconds = totalTimeSeconds,
     imageSourceUrl = imageSourceUrl,
+    mealTypes = mealTypes,
+    equipmentRequirements = equipmentRequirements,
 )
+
+private fun String.splitNames(): List<String> = split(',').map(String::trim)
+    .filter(String::isNotBlank).distinctBy(String::lowercase)
+
+private fun String.toEquipmentRequirements(): List<EquipmentRequirement> = splitNames().map { equipment ->
+    EquipmentRequirement(equipment, EquipmentRequirementKind.REQUIRED)
+}
 
 private fun String.toDisplayText(): String = this
     .replace("&nbsp;", " ")

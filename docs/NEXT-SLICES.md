@@ -585,16 +585,23 @@ on Android, including empty and error states. Merge before PR 12.5.
 
 ### PR 12.5 — Recommendations and shopping
 
+- Capture recipe-level meal types and required equipment during recipe review.
+  Use these fields in offline filters and equipment explanations; do not infer
+  them from recipe text or categories.
 - Ask what can be made using structured filters available offline.
-- Show ranked recipes with explanations for readiness, missing or uncertain
-  ingredients, freshness, exclusions, and equipment constraints.
-- Review missing ingredients and create shopping lists.
+- Show ranked recipes with matcher-grounded explanations for readiness, missing
+  or uncertain ingredients, freshness, exclusions, and equipment constraints.
+- Select eligible recipes, review missing ingredients, and create a locally saved
+  shopping list. Allow checking items off and clearing the list. Require explicit
+  confirmation before replacing an existing list and its checked state.
 
 **Independent review and verification:** Review recommendation explanations
 against matcher output; never present an unexplained score. Run matching,
-application, and shopping tests plus ./gradlew check; exercise filtered
-results, no-result, explanation, and shopping flows on Android. Merge before
-PR 12.6.
+application, shopping, and metadata migration and round-trip tests plus
+./gradlew check. On Android, exercise metadata review, filtered and no-result
+states, explanations, and shopping-list creation, check-off, clear, and
+replacement. Verify the saved list and item check-off survive an app restart and
+work offline. Merge before PR 12.6.
 
 ### PR 12.6 — Cooking and leftovers
 

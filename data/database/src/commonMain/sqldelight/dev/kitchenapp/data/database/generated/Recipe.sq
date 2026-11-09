@@ -218,3 +218,78 @@ SELECT event_id FROM cook_event_undo WHERE event_id = ?;
 
 insertCookEventUndo:
 INSERT INTO cook_event_undo(event_id, undone_on) VALUES (?, ?);
+
+selectCurrentShoppingList:
+SELECT created_at AS createdAt FROM shopping_list WHERE id = 'current';
+
+upsertCurrentShoppingList:
+INSERT OR REPLACE INTO shopping_list(id, created_at) VALUES ('current', ?);
+
+deleteCurrentShoppingList:
+DELETE FROM shopping_list WHERE id = 'current';
+
+selectCurrentShoppingListItems:
+SELECT id, ingredient_id AS ingredientId, ingredient_name AS ingredientName,
+       quantity_numerator AS quantityNumerator, quantity_denominator AS quantityDenominator,
+       unit_code AS unitCode, checked
+FROM shopping_list_item WHERE list_id = 'current'
+ORDER BY ingredient_name COLLATE NOCASE, unit_code, id;
+
+deleteCurrentShoppingListItems:
+DELETE FROM shopping_list_item WHERE list_id = 'current';
+
+insertCurrentShoppingListItem:
+INSERT INTO shopping_list_item(
+  id, list_id, ingredient_id, ingredient_name, quantity_numerator,
+  quantity_denominator, unit_code, checked
+) VALUES (?, 'current', ?, ?, ?, ?, ?, ?);
+
+deleteCurrentShoppingListItemRecipes:
+DELETE FROM shopping_list_item_recipe
+WHERE shopping_item_id IN (SELECT id FROM shopping_list_item WHERE list_id = 'current');
+
+insertShoppingListItemRecipe:
+INSERT INTO shopping_list_item_recipe(shopping_item_id, recipe_id) VALUES (?, ?);
+
+selectCurrentShoppingListItemRecipes:
+SELECT shopping_item_id AS shoppingItemId, recipe_id AS recipeId
+FROM shopping_list_item_recipe
+ORDER BY shopping_item_id, recipe_id;
+
+selectCurrentShoppingListItemExists:
+SELECT id FROM shopping_list_item WHERE list_id = 'current' AND id = ?;
+
+setCurrentShoppingListItemChecked:
+UPDATE shopping_list_item SET checked = ? WHERE list_id = 'current' AND id = ?;
+
+deleteRecipeMealTypes:
+DELETE FROM recipe_meal_type WHERE recipe_id = ?;
+
+insertRecipeMealType:
+INSERT INTO recipe_meal_type(recipe_id, position, name) VALUES (?, ?, ?);
+
+selectRecipeMealTypes:
+SELECT name FROM recipe_meal_type WHERE recipe_id = ? ORDER BY position;
+
+deleteRecipeEquipmentSubstitutes:
+DELETE FROM recipe_equipment_substitute WHERE recipe_id = ?;
+
+deleteRecipeEquipmentRequirements:
+DELETE FROM recipe_equipment_requirement WHERE recipe_id = ?;
+
+insertRecipeEquipmentRequirement:
+INSERT INTO recipe_equipment_requirement(recipe_id, position, equipment, kind)
+VALUES (?, ?, ?, ?);
+
+selectRecipeEquipmentRequirements:
+SELECT position, equipment, kind
+FROM recipe_equipment_requirement WHERE recipe_id = ? ORDER BY position;
+
+insertRecipeEquipmentSubstitute:
+INSERT INTO recipe_equipment_substitute(recipe_id, requirement_position, position, name)
+VALUES (?, ?, ?, ?);
+
+selectRecipeEquipmentSubstitutes:
+SELECT requirement_position AS requirementPosition, name
+FROM recipe_equipment_substitute WHERE recipe_id = ?
+ORDER BY requirement_position, position;

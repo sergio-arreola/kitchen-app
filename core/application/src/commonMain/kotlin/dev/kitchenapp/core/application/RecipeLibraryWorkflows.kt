@@ -202,4 +202,9 @@ data class RecipeLibraryUseCases(
     val renameRecipeCategory: RenameRecipeCategory,
     val removeRecipeCategory: RemoveRecipeCategory,
     val loadRecipeImage: LoadRecipeImage,
+    val getSuggestions: GetSuggestions,
+    val createShoppingList: CreateShoppingList,
+    val getShoppingList: GetShoppingList,
+    val setShoppingListItemChecked: SetShoppingListItemChecked,
+    val clearShoppingList: ClearShoppingList,
 )
