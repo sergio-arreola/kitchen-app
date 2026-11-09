@@ -200,13 +200,7 @@ internal fun KitchenAppNavigation(
                         }
 
                         KitchenRoute -> NavEntry(key) {
-                            AppContentStatePanel(
-                                AppContentState(
-                                    kind = AppContentStateKind.Empty,
-                                    title = "Your kitchen is ready to stock",
-                                    message = "Add items from your pantry, refrigerator, freezer, or a custom location.",
-                                ),
-                            )
+                            KitchenSetupScreen(workflows = workflows)
                         }
 
                         CookingRoute -> NavEntry(key) {

@@ -145,6 +145,11 @@ class Slice7EvaluationTest {
         val excluded = rules.evaluate(setOf(ingredientId))
         assertFalse(excluded.isAllowed)
         assertEquals(setOf(ingredientId), excluded.excludedIngredients)
+
+        val allergen = HouseholdIngredientRules(allergens = setOf(ingredientId))
+            .evaluate(setOf(ingredientId))
+        assertFalse(allergen.isAllowed)
+        assertEquals(setOf(ingredientId), allergen.excludedIngredients)
     }
 
     @Test
@@ -155,6 +160,7 @@ class Slice7EvaluationTest {
         val preference = rules.evaluate(setOf(ingredientId))
         assertTrue(preference.isAllowed)
         assertEquals(3, preference.softPreferencePenalty)
+        assertEquals(setOf(ingredientId), preference.dislikedIngredients)
 
         val evaluation = dev.kitchenapp.core.domain.household.evaluateEquipment(
             requirements = listOf(

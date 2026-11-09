@@ -3,6 +3,7 @@ package dev.kitchenapp.core.application
 import dev.kitchenapp.core.domain.ingredient.Ingredient
 import dev.kitchenapp.core.domain.ingredient.IngredientResolution
 import dev.kitchenapp.core.domain.ingredient.IngredientResolver
+import dev.kitchenapp.core.domain.identifiers.IngredientId
 import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.recipe.CanonicalRecipeDraft
 import dev.kitchenapp.core.domain.recipe.Recipe
@@ -130,6 +131,29 @@ class AddCanonicalIngredient(private val kitchen: KitchenRepository) {
     }
 }
 
+class DeleteCanonicalIngredient(
+    private val recipes: RecipeRepository,
+    private val kitchen: KitchenRepository,
+) {
+    fun delete(id: IngredientId): Boolean {
+        val snapshot = kitchen.load()
+        if (snapshot.ingredients.none { it.id == id }) return false
+        require(snapshot.inventory.lots.none { it.ingredientId == id }) {
+            "Remove this ingredient from inventory before deleting it"
+        }
+        require(
+            id !in snapshot.householdRules.allergens &&
+                id !in snapshot.householdRules.hardExclusions &&
+                snapshot.householdRules.preferences.none { it.ingredientId == id },
+        ) { "Remove this ingredient from allergens and preferences before deleting it" }
+        require(recipes.getAll().none { recipe -> recipe.ingredients.any { it.ingredientId == id } }) {
+            "This ingredient is used by a recipe and cannot be deleted"
+        }
+        kitchen.save(snapshot.copy(ingredients = snapshot.ingredients.filterNot { it.id == id }))
+        return true
+    }
+}
+
 class ListRecipeCategories(private val recipes: RecipeRepository) {
     fun getAll(): List<String> = recipes.getCategories()
         .sortedWith(compareBy({ it.lowercase() }, { it }))
@@ -168,6 +192,9 @@ data class RecipeLibraryUseCases(
     val getRecipeImage: GetRecipeImage,
     val saveReviewedRecipe: SaveReviewedRecipe,
     val addCanonicalIngredient: AddCanonicalIngredient,
+    val deleteCanonicalIngredient: DeleteCanonicalIngredient,
+    val editInventory: EditInventory,
+    val configureKitchen: ConfigureKitchen,
     val previewRecipeImport: PreviewRecipeImport,
     val deleteRecipe: DeleteRecipe,
     val listRecipeCategories: ListRecipeCategories,

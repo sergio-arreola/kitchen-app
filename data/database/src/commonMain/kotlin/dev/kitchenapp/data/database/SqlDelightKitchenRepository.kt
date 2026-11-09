@@ -70,6 +70,8 @@ class SqlDelightKitchenRepository(
         )
         val exclusions = queries.selectHardExclusions().executeAsList()
             .map { IngredientId(Uuid.parse(it)) }.toSet()
+        val allergens = queries.selectAllergens().executeAsList()
+            .map { IngredientId(Uuid.parse(it)) }.toSet()
         val preferences = queries.selectIngredientPreferences().executeAsList().map {
             IngredientPreference(
                 ingredientId = IngredientId(Uuid.parse(it.ingredientId)),
@@ -82,13 +84,21 @@ class SqlDelightKitchenRepository(
             ingredients = ingredients,
             inventory = inventory,
             availableEquipment = queries.selectAvailableEquipment().executeAsList().toSet(),
-            householdRules = HouseholdIngredientRules(exclusions, preferences),
+            householdRules = HouseholdIngredientRules(
+                hardExclusions = exclusions,
+                preferences = preferences,
+                allergens = allergens,
+            ),
         )
     }
 
     override fun save(snapshot: KitchenSnapshot) {
         database.transaction {
             val queries = database.recipeQueries
+            val existingIngredientIds = queries.selectAllIngredients().executeAsList()
+                .map { it.id }
+                .toSet()
+            val snapshotIngredientIds = snapshot.ingredients.map { it.id.toString() }.toSet()
 
             snapshot.ingredients.forEach { ingredient ->
                 val ingredientId = ingredient.id.toString()
@@ -136,10 +146,17 @@ class SqlDelightKitchenRepository(
             snapshot.householdRules.hardExclusions.sortedBy { it.toString() }.forEach {
                 queries.insertHardExclusion(it.toString())
             }
+            queries.deleteAllergens()
+            snapshot.householdRules.allergens.sortedBy { it.toString() }.forEach {
+                queries.insertAllergen(it.toString())
+            }
+
             queries.deleteIngredientPreferences()
             snapshot.householdRules.preferences.sortedBy { it.ingredientId.toString() }.forEach {
                 queries.insertIngredientPreference(it.ingredientId.toString(), it.strength.name, it.score.toLong())
             }
+
+            (existingIngredientIds - snapshotIngredientIds).forEach(queries::deleteIngredient)
         }
     }
 

@@ -4,6 +4,8 @@ import dev.kitchenapp.core.domain.identifiers.IngredientId
 
 enum class PreferenceStrength { SOFT }
 
+enum class HouseholdIngredientRuleKind { ALLERGEN, AVOID, DISLIKE }
+
 data class IngredientPreference(
     val ingredientId: IngredientId,
     val strength: PreferenceStrength = PreferenceStrength.SOFT,
@@ -18,24 +20,28 @@ data class IngredientPreference(
 data class HouseholdIngredientRules(
     val hardExclusions: Set<IngredientId> = emptySet(),
     val preferences: List<IngredientPreference> = emptyList(),
+    val allergens: Set<IngredientId> = emptySet(),
 ) {
     init {
         require(preferences.groupBy { it.ingredientId }.values.all { group -> group.size == 1 }) {
             "Each ingredient can have at most one preference"
         }
-        require(preferences.none { it.ingredientId in hardExclusions }) {
-            "An excluded ingredient cannot also be a preference"
+        require(preferences.none { it.ingredientId in hardExclusions || it.ingredientId in allergens }) {
+            "An allergen or excluded ingredient cannot also be a preference"
+        }
+        require(allergens.intersect(hardExclusions).isEmpty()) {
+            "An ingredient cannot be both an allergen and an avoid rule"
         }
     }
 
     fun evaluate(ingredients: Set<IngredientId>): IngredientRuleEvaluation {
-        val excluded = ingredients.intersect(hardExclusions)
+        val excluded = ingredients.intersect(hardExclusions + allergens)
         val matchedPreferences = preferences.filter { it.ingredientId in ingredients }
         return IngredientRuleEvaluation(
             isAllowed = excluded.isEmpty(),
             excludedIngredients = excluded,
             softPreferencePenalty = matchedPreferences.sumOf { it.score },
-            preferredIngredients = matchedPreferences.map { it.ingredientId }.toSet(),
+            dislikedIngredients = matchedPreferences.map { it.ingredientId }.toSet(),
         )
     }
 }
@@ -44,7 +50,7 @@ data class IngredientRuleEvaluation(
     val isAllowed: Boolean,
     val excludedIngredients: Set<IngredientId>,
     val softPreferencePenalty: Int,
-    val preferredIngredients: Set<IngredientId>,
+    val dislikedIngredients: Set<IngredientId>,
 )
 
 enum class EquipmentRequirementKind { REQUIRED, PREFERRED, SUBSTITUTABLE, IRRELEVANT }

@@ -565,13 +565,23 @@ servings regression. Merge before PR 12.4.
 ### PR 12.4 — Kitchen setup and inventory
 
 - Build and edit inventory across pantry, refrigerator, freezer, and custom
-  locations.
-- Configure tracking precision, equipment, allergens, and preferences.
+  locations, with presence-only, approximate, and exact tracking.
+- Keep the canonical ingredient catalog separate from stocked inventory.
+  Allow ingredient deletion only when no recipe, stock lot, or household rule
+  refers to it.
+- Add and remove equipment.
+- Manage an explicit household-rule list. Users manually add an ingredient
+  rule and choose Allergen, Avoid, or Dislike; stocked or imported ingredients
+  do not become rules automatically. Allergen and Avoid are hard exclusions;
+  Dislike is a soft ranking penalty. Allow deleting a rule independently from
+  the canonical ingredient.
+- For V1, these rules apply to the household as a whole.
 
 **Independent review and verification:** Review that edits use application
-use cases and preserve tracking/rule semantics. Run affected tests and
-./gradlew check; exercise add, edit, move, and configuration flows on Android,
-including empty and error states. Merge before PR 12.5.
+use cases, preserve tracking/rule semantics, and reject unsafe ingredient
+deletion. Run affected tests and ./gradlew check; exercise inventory add, edit,
+move, and removal; ingredient/equipment/rule add and delete; and settings flows
+on Android, including empty and error states. Merge before PR 12.5.
 
 ### PR 12.5 — Recommendations and shopping
 
@@ -669,8 +679,11 @@ releases use the MINOR component (beginning with 1.1.0); backward-compatible
 bug fixes use PATCH; incompatible changes to the declared public contract use
 MAJOR, following [Semantic Versioning 2.0.0](https://semver.org/).
 
-The following library refinements are deferred to 1.1.0 and later:
+The following compatible refinements are deferred to 1.1.0 and later:
 
+- Per-member Allergens, Avoid, and Dislike rules with meal participant context.
+  An allergen hard-blocks a meal when the affected member is included; it does
+  not block a single-member meal when that member is not joining.
 - Ratings and Top Rated views.
 - Favorites.
 - Named Cookbook collections such as Thanksgiving, Christmas, and Hosting.

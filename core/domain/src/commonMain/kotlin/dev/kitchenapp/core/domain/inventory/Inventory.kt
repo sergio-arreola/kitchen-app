@@ -207,7 +207,32 @@ data class KitchenInventory(
     /** Adds a configurable storage location. */
     fun addLocation(location: KitchenLocation): KitchenInventory {
         require(locations.none { it.id == location.id }) { "Kitchen location already exists" }
-        return copy(locations = locations + location)
+        require(locations.none { it.name.equals(location.name.trim(), ignoreCase = true) }) {
+            "Kitchen location name already exists"
+        }
+        return copy(locations = locations + location.copy(name = location.name.trim()))
+    }
+
+    /** Renames a location without changing the lots stored there. */
+    fun renameLocation(locationId: KitchenLocationId, name: String): KitchenInventory {
+        require(locations.any { it.id == locationId }) { "Kitchen location does not exist" }
+        val normalizedName = name.trim()
+        require(normalizedName.isNotBlank()) { "Kitchen location name cannot be blank" }
+        require(locations.none { it.id != locationId && it.name.equals(normalizedName, ignoreCase = true) }) {
+            "Kitchen location name already exists"
+        }
+        return copy(locations = locations.map {
+            if (it.id == locationId) it.copy(name = normalizedName) else it
+        })
+    }
+
+    /** Removes an unused storage location. Move or discard its lots first. */
+    fun removeLocation(locationId: KitchenLocationId): KitchenInventory {
+        require(locations.any { it.id == locationId }) { "Kitchen location does not exist" }
+        require(lots.none { it.locationId == locationId }) {
+            "Move or remove inventory from this location first"
+        }
+        return copy(locations = locations.filterNot { it.id == locationId })
     }
 
     /** Adds a lot at one of this inventory's configured locations. */
@@ -217,6 +242,13 @@ data class KitchenInventory(
         }
         require(lots.none { it.id == lot.id }) { "Inventory lot already exists" }
         return copy(lots = lots + lot)
+    }
+
+    /** Replaces an existing lot after an explicit user edit. */
+    fun updateLot(lot: InventoryLot): KitchenInventory {
+        require(lots.any { it.id == lot.id }) { "Inventory lot does not exist" }
+        require(locations.any { it.id == lot.locationId }) { "Inventory lot location is not configured" }
+        return copy(lots = lots.map { if (it.id == lot.id) lot else it })
     }
 
     /** Replaces a lot's tracked amount after an explicit user adjustment. */
