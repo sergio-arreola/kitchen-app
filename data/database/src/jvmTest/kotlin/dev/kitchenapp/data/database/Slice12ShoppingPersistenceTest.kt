@@ -18,10 +18,11 @@ import kotlin.time.Instant
 
 class Slice12ShoppingPersistenceTest {
     @Test
-    fun `migration from version four creates an empty current shopping list store`() {
+    fun `migration from version six creates an empty current shopping list store`() {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         driver.use {
-            KitchenDatabase.Schema.migrate(driver, oldVersion = 4, newVersion = KitchenDatabase.Schema.version)
+            KitchenDatabase.Schema.migrate(driver, oldVersion = 0, newVersion = 6)
+            KitchenDatabase.Schema.migrate(driver, oldVersion = 6, newVersion = KitchenDatabase.Schema.version)
             val repository = SqlDelightShoppingListRepository(KitchenDatabase(driver))
 
             assertNull(repository.getCurrent())

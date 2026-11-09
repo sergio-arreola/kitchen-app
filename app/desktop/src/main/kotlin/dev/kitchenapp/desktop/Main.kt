@@ -25,6 +25,8 @@ import dev.kitchenapp.core.application.RemoveRecipeCategory
 import dev.kitchenapp.core.application.SearchRecipes
 import dev.kitchenapp.data.database.JvmKitchenDatabase
 import dev.kitchenapp.data.database.SqlDelightKitchenRepository
+import dev.kitchenapp.data.database.SqlDelightCookingRepository
+import dev.kitchenapp.data.database.SqlDelightActiveCookingSessionRepository
 import dev.kitchenapp.data.database.SqlDelightRecipeRepository
 import dev.kitchenapp.data.database.SqlDelightShoppingListRepository
 import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
@@ -32,6 +34,7 @@ import dev.kitchenapp.data.importers.DefaultRecipeImageLoader
 import dev.kitchenapp.data.importers.KtorRecipePageFetcher
 import dev.kitchenapp.data.importers.archive.ZipFileArchiveReader
 import dev.kitchenapp.sharedui.KitchenApp
+import dev.kitchenapp.sharedui.CookingWorkflows
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -45,6 +48,7 @@ fun main() = application {
     val recipes = SqlDelightRecipeRepository(database)
     val kitchen = SqlDelightKitchenRepository(database)
     val shoppingLists = SqlDelightShoppingListRepository(database)
+    val cookingWorkflows = CookingWorkflows(SqlDelightActiveCookingSessionRepository(database), recipes, kitchen, SqlDelightCookingRepository(database, kitchen))
     val archiveReader = ZipFileArchiveReader()
     val workflows = RecipeLibraryUseCases(
         searchRecipes = SearchRecipes(recipes),
@@ -82,6 +86,7 @@ fun main() = application {
     ) {
         KitchenApp(
             workflows = workflows,
+            cookingWorkflows = cookingWorkflows,
             onRequestPaprikaArchive = { onSelected ->
                 val dialog = FileDialog(null as Frame?, "Choose Paprika archive", FileDialog.LOAD)
                 dialog.isVisible = true

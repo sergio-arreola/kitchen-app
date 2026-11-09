@@ -605,15 +605,34 @@ work offline. Merge before PR 12.6.
 
 ### PR 12.6 — Cooking and leftovers
 
-- Start a non-mutating cooking session, confirm consumption explicitly, and
-  optionally record leftovers.
-- Keep browsing or starting a recipe from changing inventory.
+- Allow one recipe per cooking session in V1. Persist the active session so
+  switching apps, minimizing, or restarting does not end the cook.
+- Keep the display awake while the active cooking screen is in the foreground.
+  Leaving the app or manually turning off the screen ends that focus mode. On
+  the first return, offer one confirmation that cooking continues; once
+  confirmed, restore focus mode on later returns without repeated prompts.
+- Let users toggle ingredient strike-through while cooking and undo it. This is
+  session progress only and never changes inventory.
+- Make **End Cook** the explicit way to finish. Review and adjust actual
+  consumption, then confirm before applying inventory changes. Ask about
+  leftovers and allow recording them now or setting a one-shot post-meal
+  reminder. Save immediate leftovers with the cook event and depletion in one
+  transaction; link later leftovers to that event when confirmed.
+- Offer an optional one-shot check-in notification after 1–2 hours away. An
+  ignored notification does not repeat or end the session; users return and
+  choose when to complete it. Cooking remains usable if notifications are
+  denied.
+- Defer structured recording of omitted ingredients and substitutes, and
+  sessions containing multiple recipes, to 1.1.0.
 
-**Independent review and verification:** Review explicit confirmation and
-application transaction boundaries. Run cooking workflow tests and
-./gradlew check; exercise cancel, confirm, quantity adjustment, and optional
-leftover flows on Android, including persisted state after app restart. Merge
-before PR 12.7.
+**Independent review and verification:** Review explicit confirmation,
+transaction boundaries, session restoration, focus mode, and reminder
+scheduling. Run cooking workflow and persistence tests plus `./gradlew check`.
+On Android, exercise cancel and confirm, actual quantity adjustment,
+checklist toggle and undo without inventory mutation, app switches and screen
+off/on, one-time return confirmation, reminder non-repetition and denied
+notification permission, immediate and reminded leftovers, and persisted state
+after restart. Merge before PR 12.7.
 
 ### PR 12.7 — Desktop engineering workspace
 

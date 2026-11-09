@@ -9,9 +9,12 @@ import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneSt
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -21,6 +24,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
+import dev.kitchenapp.core.application.ActiveCookingSession
 import dev.kitchenapp.core.application.RecipeImportCandidate
 import dev.kitchenapp.core.application.RecipeLibraryUseCases
 import kotlinx.serialization.Serializable
@@ -29,7 +33,7 @@ import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 
 @Serializable
-private data object RecipesRoute : NavKey
+internal data object RecipesRoute : NavKey
 
 @Serializable
 private data object RecommendationsRoute : NavKey
@@ -47,10 +51,13 @@ private data class RecipeImportReviewRoute(val candidateIndex: Int) : NavKey
 private data object KitchenRoute : NavKey
 
 @Serializable
-private data object CookingRoute : NavKey
+internal data object CookingRoute : NavKey
 
 @Serializable
 private data object ShoppingRoute : NavKey
+
+internal fun initialAppRoute(activeSession: ActiveCookingSession?): NavKey =
+    if (activeSession == null) RecipesRoute else CookingRoute
 
 private val appNavigationSavedStateConfiguration = SavedStateConfiguration {
     serializersModule = SerializersModule {
@@ -86,8 +93,39 @@ private val appDestinations = listOf(
 internal fun KitchenAppNavigation(
     workflows: RecipeLibraryUseCases,
     onRequestPaprikaArchive: ((String?) -> Unit) -> Unit,
+    cookingWorkflows: CookingWorkflows,
+    cookingPlatform: CookingPlatform,
 ) {
-    val backStack = rememberNavBackStack(appNavigationSavedStateConfiguration, RecipesRoute)
+    val coordinator = remember(cookingWorkflows, cookingPlatform) { CookingCoordinator(cookingWorkflows, cookingPlatform) }
+    DisposableEffect(coordinator, cookingPlatform) {
+        coordinator.refresh()
+        cookingPlatform.bindLifecycle(coordinator::away, coordinator::returned)
+        cookingPlatform.bindStatus(coordinator::onPlatformStatus)
+        onDispose {
+            cookingPlatform.unbindStatus()
+            cookingPlatform.unbindLifecycle()
+        }
+    }
+    val initialRoute = remember(cookingWorkflows) {
+        initialAppRoute(cookingWorkflows.sessions.getActive())
+    }
+    val backStack = rememberNavBackStack(appNavigationSavedStateConfiguration, initialRoute)
+    LaunchedEffect(Unit) {
+        if (initialRoute == CookingRoute && backStack.lastOrNull() != CookingRoute) {
+            backStack.clear()
+            backStack.add(CookingRoute)
+        }
+    }
+    var requestedEventId by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(cookingPlatform, coordinator) {
+        cookingPlatform.bindReminderOpen { eventId ->
+            coordinator.refresh()
+            requestedEventId = eventId
+            backStack.clear()
+            backStack.add(CookingRoute)
+        }
+        onDispose { cookingPlatform.unbindReminderOpen() }
+    }
     val currentRoute = backStack.lastOrNull()
     val selectedTopLevelRoute = when (currentRoute) {
         is RecipeDetailsRoute, RecipeImportRoute, is RecipeImportReviewRoute, RecipesRoute -> RecipesRoute
@@ -166,6 +204,11 @@ internal fun KitchenAppNavigation(
                                 recipeId = key.recipeId,
                                 onBack = { if (backStack.size > 1) backStack.removeLastOrNull() },
                                 onSaved = { recipeRefreshKey++ },
+                                onStartCooking = { recipe ->
+                                    coordinator.start(recipe)
+                                    backStack.clear()
+                                    backStack.add(CookingRoute)
+                                },
                                 onDeleted = {
                                     recipeRefreshKey++
                                     if (backStack.size > 1) backStack.removeLastOrNull()
@@ -217,18 +260,10 @@ internal fun KitchenAppNavigation(
                         }
 
                         CookingRoute -> NavEntry(key) {
-                            AppContentStatePanel(
-                                state = AppContentState(
-                                    kind = AppContentStateKind.Review,
-                                    title = "Choose a recipe first",
-                                    message = "Select a saved recipe before starting a cooking session.",
-                                    actionLabel = "Browse recipes",
-                                ),
-                                onAction = {
-                                    backStack.clear()
-                                    backStack.add(RecipesRoute)
-                                },
-                            )
+                            CookingHome(coordinator, cookingPlatform, requestedEventId, { requestedEventId = null }) {
+                                backStack.clear()
+                                backStack.add(RecipesRoute)
+                            }
                         }
 
                         ShoppingRoute -> NavEntry(key) {

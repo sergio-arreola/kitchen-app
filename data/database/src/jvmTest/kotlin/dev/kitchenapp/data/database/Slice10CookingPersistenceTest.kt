@@ -74,8 +74,9 @@ class Slice10CookingPersistenceTest {
             )
             recipes.save(leftoverRecipe)
             val cooking = SqlDelightCookingRepository(database)
+            val sessions = SqlDelightActiveCookingSessionRepository(database)
             val event = CompleteCooking(kitchen, cooking).complete(
-                session = StartCooking().start(recipe, servings = 2),
+                session = StartCooking(sessions).start(recipe, servings = 2),
                 cookedOn = today,
                 consumed = listOf(ConsumedInventory(lot.id, Rational.of(2), UnitCode.EGG)),
                 leftovers = listOf(
@@ -94,6 +95,7 @@ class Slice10CookingPersistenceTest {
             assertEquals(Rational.of(3), (reloaded.inventory.lots.single { it.id == lot.id }.amount as InventoryAmount.Exact).quantity)
             assertEquals(2, reloaded.inventory.lots.size)
             assertEquals(1, database.recipeQueries.selectLeftovers().executeAsList().size)
+            assertNull(sessions.getActive())
             val suggestion = GetSuggestions(recipes, SqlDelightKitchenRepository(database))
                 .get(SuggestionOptions(asOfDate = today))
                 .single { it.recipe.id == leftoverRecipe.id }

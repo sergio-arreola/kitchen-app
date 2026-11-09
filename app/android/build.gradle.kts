@@ -40,4 +40,5 @@ dependencies {
     implementation(projects.data.database)
     implementation(projects.data.importers)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.work.runtime)
 }
