@@ -75,6 +75,37 @@ class InventoryTest {
     }
 
     @Test
+    fun `locations can be renamed and only unused locations can be removed`() {
+        val pantry = KitchenLocation(name = "Pantry")
+        val fridge = KitchenLocation(name = "Fridge")
+        val lot = InventoryLot(ingredientId = ingredientId, locationId = pantry.id)
+        val inventory = KitchenInventory(listOf(pantry, fridge), listOf(lot))
+
+        val renamed = inventory.renameLocation(pantry.id, "Dry goods")
+        assertEquals("Dry goods", renamed.locations.first { it.id == pantry.id }.name)
+        assertEquals(pantry.id, renamed.lots.single().locationId)
+        assertFailsWith<IllegalArgumentException> { inventory.removeLocation(pantry.id) }
+        assertEquals(listOf(pantry), inventory.discardLot(lot.id).removeLocation(fridge.id).locations)
+        assertFailsWith<IllegalArgumentException> { inventory.addLocation(KitchenLocation(name = " pantry ")) }
+        assertFailsWith<IllegalArgumentException> { inventory.renameLocation(pantry.id, "   ") }
+    }
+
+    @Test
+    fun `updating a lot preserves identity and validates its location`() {
+        val pantry = KitchenLocation(name = "Pantry")
+        val fridge = KitchenLocation(name = "Fridge")
+        val lot = InventoryLot(ingredientId = ingredientId, locationId = pantry.id)
+        val inventory = KitchenInventory(listOf(pantry, fridge), listOf(lot))
+
+        val updated = inventory.updateLot(lot.copy(locationId = fridge.id, amount = InventoryAmount.Exact(Rational.of(2))))
+
+        assertEquals(fridge.id, updated.lots.single().locationId)
+        assertFailsWith<IllegalArgumentException> {
+            inventory.updateLot(lot.copy(locationId = KitchenLocationId.generate()))
+        }
+    }
+
+    @Test
     fun `inventory operations add adjust move freeze thaw and discard lots`() {
         val fridge = KitchenLocation(name = "Fridge")
         val freezer = KitchenLocation(name = "Freezer")

@@ -149,6 +149,15 @@ INSERT INTO hard_exclusion(ingredient_id) VALUES (?);
 deleteHardExclusions:
 DELETE FROM hard_exclusion;
 
+selectAllergens:
+SELECT ingredient_id AS ingredientId FROM allergen ORDER BY ingredient_id;
+
+insertAllergen:
+INSERT INTO allergen(ingredient_id) VALUES (?);
+
+deleteAllergens:
+DELETE FROM allergen;
+
 selectIngredientPreferences:
 SELECT ingredient_id AS ingredientId, strength, score
 FROM ingredient_preference ORDER BY ingredient_id;

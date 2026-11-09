@@ -86,6 +86,8 @@ class CreateShoppingList(
 
 /** Replaces editable inventory while preserving repository validation and atomic persistence. */
 class EditInventory(private val kitchen: KitchenRepository) {
+    fun get(): KitchenSnapshot = kitchen.load()
+
     fun update(transform: (KitchenSnapshot) -> KitchenSnapshot): KitchenSnapshot {
         val updated = transform(kitchen.load())
         kitchen.save(updated)
@@ -99,7 +101,14 @@ class ConfigureKitchen(private val kitchen: KitchenRepository) {
         equipment: Set<String>,
         rules: HouseholdIngredientRules,
     ): KitchenSnapshot {
-        val updated = kitchen.load().copy(availableEquipment = equipment, householdRules = rules)
+        val normalizedEquipment = equipment.map(String::trim)
+            .filter(String::isNotBlank)
+            .distinctBy(String::lowercase)
+            .toSet()
+        val updated = kitchen.load().copy(
+            availableEquipment = normalizedEquipment,
+            householdRules = rules,
+        )
         kitchen.save(updated)
         return updated
     }

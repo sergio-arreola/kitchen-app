@@ -3,8 +3,11 @@ package dev.kitchenapp.desktop
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import dev.kitchenapp.core.application.AddCanonicalIngredient
+import dev.kitchenapp.core.application.ConfigureKitchen
 import dev.kitchenapp.core.application.CreateRecipeCategory
+import dev.kitchenapp.core.application.DeleteCanonicalIngredient
 import dev.kitchenapp.core.application.DeleteRecipe
+import dev.kitchenapp.core.application.EditInventory
 import dev.kitchenapp.core.application.GetRecipe
 import dev.kitchenapp.core.application.GetRecipeImage
 import dev.kitchenapp.core.application.ListRecipeCategories
@@ -42,6 +45,9 @@ fun main() = application {
         getRecipeImage = GetRecipeImage(recipes),
         saveReviewedRecipe = SaveReviewedRecipe(recipes, kitchen),
         addCanonicalIngredient = AddCanonicalIngredient(kitchen),
+        deleteCanonicalIngredient = DeleteCanonicalIngredient(recipes, kitchen),
+        editInventory = EditInventory(kitchen),
+        configureKitchen = ConfigureKitchen(kitchen),
         previewRecipeImport = PreviewRecipeImport(
             gateway = DefaultRecipeImportGateway(
                 archiveReader = archiveReader,

@@ -141,10 +141,10 @@ class Slice9PersistenceTest {
         val (driver, database) = newDatabase()
         driver.use {
             val ingredient = Ingredient(name = "Rice", aliases = setOf("long grain"))
+            val allergenIngredient = Ingredient(name = "Peanut")
             val location = KitchenLocation(name = "Pantry")
             val snapshot = KitchenSnapshot(
-                ingredients = listOf(ingredient),
-                inventory = KitchenInventory(
+                ingredients = listOf(allergenIngredient, ingredient),                inventory = KitchenInventory(
                     locations = listOf(location),
                     lots = listOf(
                         InventoryLot(
@@ -161,6 +161,7 @@ class Slice9PersistenceTest {
                 availableEquipment = setOf("Rice cooker", "Pot"),
                 householdRules = HouseholdIngredientRules(
                     preferences = listOf(IngredientPreference(ingredient.id, score = 3)),
+                    allergens = setOf(allergenIngredient.id),
                 ),
             )
             val repository = SqlDelightKitchenRepository(database)
@@ -171,11 +172,25 @@ class Slice9PersistenceTest {
 
             val updated = snapshot.copy(
                 availableEquipment = setOf("Dutch oven"),
-                ingredients = listOf(ingredient.copy(aliases = setOf("white rice"))),
+                ingredients = listOf(allergenIngredient, ingredient.copy(aliases = setOf("white rice"))),
             )
             repository.save(updated)
 
             assertEquals(updated, repository.load())
+        }
+    }
+
+    @Test
+    fun `saving without an unused ingredient deletes it from the catalog`() {
+        val (driver, database) = newDatabase()
+        driver.use {
+            val ingredient = Ingredient(name = "Unused spice")
+            val repository = SqlDelightKitchenRepository(database)
+            repository.save(KitchenSnapshot(ingredients = listOf(ingredient)))
+
+            repository.save(KitchenSnapshot())
+
+            assertTrue(database.recipeQueries.selectAllIngredients().executeAsList().isEmpty())
         }
     }
 
