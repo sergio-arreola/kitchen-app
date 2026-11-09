@@ -1,0 +1,24 @@
+ALTER TABLE cook_event
+ADD COLUMN leftover_follow_up_pending INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE cook_event
+ADD COLUMN leftover_reminder_claimed INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE cooking_session (
+  singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
+  id TEXT NOT NULL UNIQUE,
+  recipe_id TEXT NOT NULL REFERENCES recipe(id) ON DELETE RESTRICT,
+  servings INTEGER CHECK (servings IS NULL OR servings > 0),
+  first_return_state TEXT NOT NULL
+    CHECK (first_return_state IN ('NOT_RETURNED', 'PROMPTED', 'DISMISSED', 'CONFIRMED')),
+  away_generation INTEGER NOT NULL DEFAULT 0 CHECK (away_generation >= 0),
+  is_away INTEGER NOT NULL DEFAULT 0 CHECK (is_away IN (0, 1)),
+  delivered_check_in_generation INTEGER,
+  resume_required INTEGER NOT NULL DEFAULT 0 CHECK (resume_required IN (0, 1))
+);
+
+CREATE TABLE cooking_session_checked_ingredient (
+  session_id TEXT NOT NULL REFERENCES cooking_session(id) ON DELETE CASCADE,
+  recipe_ingredient_id TEXT NOT NULL,
+  PRIMARY KEY (session_id, recipe_ingredient_id)
+);

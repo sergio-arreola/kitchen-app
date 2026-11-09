@@ -1,5 +1,6 @@
 package dev.kitchenapp.android
 
+import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -30,6 +31,8 @@ import dev.kitchenapp.core.application.RemoveRecipeCategory
 import dev.kitchenapp.core.application.SearchRecipes
 import dev.kitchenapp.data.database.AndroidKitchenDatabase
 import dev.kitchenapp.data.database.SqlDelightKitchenRepository
+import dev.kitchenapp.data.database.SqlDelightCookingRepository
+import dev.kitchenapp.data.database.SqlDelightActiveCookingSessionRepository
 import dev.kitchenapp.data.database.SqlDelightRecipeRepository
 import dev.kitchenapp.data.database.SqlDelightShoppingListRepository
 import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
@@ -37,8 +40,13 @@ import dev.kitchenapp.data.importers.DefaultRecipeImageLoader
 import dev.kitchenapp.data.importers.KtorRecipePageFetcher
 import dev.kitchenapp.data.importers.archive.AndroidContentResolverArchiveReader
 import dev.kitchenapp.sharedui.KitchenApp
+import dev.kitchenapp.sharedui.CookingWorkflows
 
 class MainActivity : ComponentActivity() {
+    private lateinit var cookingPlatform: AndroidCookingPlatform
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cookingPlatform.permissionResult(granted)
+    }
     private var onPaprikaArchiveSelected: ((String?) -> Unit)? = null
 
     private val paprikaArchivePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -54,6 +62,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cookingPlatform = AndroidCookingPlatform(this) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        cookingPlatform.create(intent)
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
@@ -63,6 +75,7 @@ class MainActivity : ComponentActivity() {
         val recipes = SqlDelightRecipeRepository(database)
         val kitchen = SqlDelightKitchenRepository(database)
         val shoppingLists = SqlDelightShoppingListRepository(database)
+        val cookingWorkflows = CookingWorkflows(SqlDelightActiveCookingSessionRepository(database), recipes, kitchen, SqlDelightCookingRepository(database, kitchen))
         val archiveReader = AndroidContentResolverArchiveReader(contentResolver)
         val workflows = RecipeLibraryUseCases(
             searchRecipes = SearchRecipes(recipes),
@@ -97,11 +110,44 @@ class MainActivity : ComponentActivity() {
         setContent {
             KitchenApp(
                 workflows = workflows,
+                cookingWorkflows = cookingWorkflows,
+                cookingPlatform = cookingPlatform,
                 onRequestPaprikaArchive = { onSelected ->
                     onPaprikaArchiveSelected = onSelected
                     paprikaArchivePicker.launch(arrayOf("*/*"))
                 },
             )
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        cookingPlatform.start()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        cookingPlatform.resume()
+    }
+
+    override fun onPause() {
+        cookingPlatform.pause()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        cookingPlatform.stop()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        cookingPlatform.destroy()
+        super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        cookingPlatform.handleIntent(intent)
     }
 }

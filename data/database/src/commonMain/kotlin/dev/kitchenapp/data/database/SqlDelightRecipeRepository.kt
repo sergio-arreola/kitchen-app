@@ -130,7 +130,13 @@ class SqlDelightRecipeRepository(
     }
 
     override fun delete(id: RecipeId) {
-        database.recipeQueries.deleteRecipe(id.toString())
+        database.transaction {
+            val active = database.recipeQueries.selectActiveCookingSession().executeAsOneOrNull()
+            require(active?.recipeId != id.toString()) {
+                "Cannot delete a recipe while its cooking session is active"
+            }
+            database.recipeQueries.deleteRecipe(id.toString())
+        }
     }
 
     override fun getRecipeImage(recipeId: RecipeId): RecipeImage? =

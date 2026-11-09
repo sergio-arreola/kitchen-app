@@ -351,6 +351,7 @@ internal fun RecipeDetailScreen(
     onBack: () -> Unit,
     onSaved: () -> Unit,
     onDeleted: () -> Unit,
+    onStartCooking: (Recipe) -> Unit,
 ) {
     var recipe by remember(recipeId) { mutableStateOf<Recipe?>(null) }
     var recipeImage by remember(recipeId) { mutableStateOf<RecipeImage?>(null) }
@@ -404,6 +405,7 @@ internal fun RecipeDetailScreen(
                 navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
                 actions = {
                     if (loadedRecipe != null && !editing) {
+                        TextButton(onClick = { onStartCooking(loadedRecipe) }) { Text("Cook") }
                         TextButton(
                             onClick = {
                                 name = loadedRecipe.name

@@ -1,6 +1,8 @@
 package dev.kitchenapp.data.database
 
 import dev.kitchenapp.core.application.CookEvent
+import dev.kitchenapp.core.application.CookHistoryEntry
+import dev.kitchenapp.core.application.ConsumedInventory
 import dev.kitchenapp.core.application.CookingRepository
 import dev.kitchenapp.core.application.KitchenRepository
 import dev.kitchenapp.core.application.KitchenSnapshot
@@ -9,6 +11,7 @@ import dev.kitchenapp.core.domain.enums.ApproximateLevel
 import dev.kitchenapp.core.domain.identifiers.IngredientId
 import dev.kitchenapp.core.domain.identifiers.InventoryLotId
 import dev.kitchenapp.core.domain.identifiers.KitchenLocationId
+import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.inventory.InventoryAmount
 import dev.kitchenapp.core.domain.inventory.InventoryLot
 import dev.kitchenapp.core.domain.inventory.KitchenInventory
@@ -29,7 +32,10 @@ class SqlDelightCookingRepository(
         previousLots: List<InventoryLot>,
         updatedSnapshot: KitchenSnapshot,
         leftovers: List<PreparedLeftover>,
+        sessionId: String?,
+        leftoverFollowUpPending: Boolean,
     ) {
+        require(!(leftovers.isNotEmpty() && leftoverFollowUpPending))
         database.transaction {
             val queries = database.recipeQueries
             require(queries.selectRecipeById(event.recipeId.toString()).executeAsOneOrNull() != null) {
@@ -45,6 +51,7 @@ class SqlDelightCookingRepository(
                 event.cookedOn.toString(),
                 event.servings?.toString(),
                 event.note,
+                leftoverFollowUpPending.toLong(),
             )
             event.consumed.forEach { item ->
                 queries.insertCookConsumption(
@@ -86,8 +93,90 @@ class SqlDelightCookingRepository(
                     leftover.useBy?.toString(),
                 )
             }
+            sessionId?.let { id ->
+                require(queries.selectCookingSessionById(id).executeAsOneOrNull() != null) {
+                    "Active cooking session is no longer available"
+                }
+                queries.deleteActiveCookingSession(id)
+            }
         }
     }
+
+    override fun recordLeftovers(
+        eventId: String,
+        leftovers: List<PreparedLeftover>,
+        updatedSnapshot: KitchenSnapshot,
+    ) {
+        require(leftovers.isNotEmpty())
+        database.transaction {
+            val queries = database.recipeQueries
+            require(queries.selectCookEventExistsAndNotUndone(eventId).executeAsOneOrNull() != null) {
+                "Cook event does not exist or has been undone"
+            }
+            require(queries.selectCookEventFollowUpPending(eventId).executeAsOneOrNull() == 1L) {
+                "Cook event is not awaiting leftover follow-up"
+            }
+            kitchen.save(updatedSnapshot)
+            leftovers.forEach { leftover ->
+                queries.insertCookLeftover(
+                    leftover.id.toString(), eventId, leftover.ingredientId.toString(), leftover.name,
+                    leftover.quantity.numerator, leftover.quantity.denominator, leftover.unit?.code,
+                    leftover.preparedOn.toString(), leftover.useBy?.toString(),
+                )
+            }
+            queries.markCookEventFollowUpComplete(eventId)
+            check(queries.selectChangedRows().executeAsOne() == 1L) {
+                "Cook event follow-up was already completed"
+            }
+        }
+    }
+
+    override fun dismissLeftoverFollowUp(eventId: String) {
+        database.transaction {
+            val queries = database.recipeQueries
+            require(queries.selectCookEventExistsAndNotUndone(eventId).executeAsOneOrNull() != null) {
+                "Cook event does not exist or has been undone"
+            }
+            queries.markCookEventFollowUpDismissed(eventId)
+            check(queries.selectChangedRows().executeAsOne() == 1L) {
+                "Cook event is not awaiting leftover follow-up"
+            }
+        }
+    }
+
+    override fun claimLeftoverReminder(eventId: String): Boolean {
+        var claimed = false
+        database.transaction {
+            val queries = database.recipeQueries
+            queries.claimLeftoverReminder(eventId)
+            claimed = queries.selectChangedRows().executeAsOne() == 1L
+        }
+        return claimed
+    }
+
+    override fun getHistory(): List<CookHistoryEntry> =
+        database.recipeQueries.selectCookHistory().executeAsList().map { row ->
+            CookHistoryEntry(
+                event = CookEvent(
+                    id = row.id,
+                    recipeId = RecipeId(Uuid.parse(row.recipeId)),
+                    servings = row.servings?.toInt(),
+                    cookedOn = row.cookedOn.asDate(),
+                    consumed = database.recipeQueries.selectCookConsumptions(row.id).executeAsList().map { item ->
+                        ConsumedInventory(
+                            lotId = InventoryLotId(Uuid.parse(item.lotId)),
+                            quantity = item.quantityNumerator?.let {
+                                Rational.of(it, requireNotNull(item.quantityDenominator))
+                            },
+                            unit = item.unitCode?.asUnit(),
+                        )
+                    },
+                    note = row.note,
+                ),
+                leftoverFollowUpPending = row.leftoverFollowUpPending == 1L,
+                hasLeftovers = row.hasLeftovers,
+            )
+        }
 
     override fun undo(eventId: String, undoneOn: DomainLocalDate): KitchenSnapshot? {
         var restored: KitchenSnapshot? = null
@@ -133,6 +222,7 @@ class SqlDelightCookingRepository(
             val updated = snapshot.copy(inventory = KitchenInventory(snapshot.inventory.locations, merged))
             kitchen.save(updated)
             queries.deleteCookLeftovers(eventId)
+            queries.clearCookEventFollowUp(eventId)
             queries.insertCookEventUndo(eventId, undoneOn.toString())
             restored = updated
         }
@@ -162,6 +252,8 @@ class SqlDelightCookingRepository(
         is InventoryAmount.Approximate -> level.name
         is InventoryAmount.Exact -> ApproximateLevel.EXACT.name
     }
+
+    private fun Boolean.toLong(): Long = if (this) 1L else 0L
 
     private fun String.asUnit(): UnitCode =
         UnitCode.fromCode(this) ?: error("Unknown persisted unit code: $this")

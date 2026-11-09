@@ -38,7 +38,7 @@ class Slice10WorkflowsTest {
 
         assertEquals(listOf(recipe), SearchRecipes(recipes).search("egg"))
         assertEquals(1, GetSuggestions(recipes, kitchen).get(SuggestionOptions(asOfDate = today)).size)
-        val session = StartCooking().start(recipe, servings = 2)
+        val session = StartCooking(FakeCookingSessions()).start(recipe, servings = 2)
 
         assertEquals(recipe, session.recipe)
         assertEquals(listOf(lot), kitchen.load().inventory.lots)
@@ -62,7 +62,7 @@ class Slice10WorkflowsTest {
         )
         val kitchen = FakeKitchen(KitchenSnapshot(inventory = KitchenInventory(listOf(location), listOf(lot))))
         val cooking = FakeCooking(kitchen)
-        val session = StartCooking().start(recipe, servings = 2)
+        val session = StartCooking(FakeCookingSessions()).start(recipe, servings = 2)
 
         val event = CompleteCooking(kitchen, cooking).complete(
             session = session,
@@ -104,11 +104,24 @@ class Slice10WorkflowsTest {
             previousLots: List<InventoryLot>,
             updatedSnapshot: KitchenSnapshot,
             leftovers: List<PreparedLeftover>,
+            sessionId: String?,
+            leftoverFollowUpPending: Boolean,
         ) {
             before = previousLots
             kitchen.save(updatedSnapshot)
             lastEvent = event
         }
+
+        override fun recordLeftovers(
+            eventId: String,
+            leftovers: List<PreparedLeftover>,
+            updatedSnapshot: KitchenSnapshot,
+        ) = kitchen.save(updatedSnapshot)
+
+        override fun dismissLeftoverFollowUp(eventId: String) = Unit
+        override fun claimLeftoverReminder(eventId: String) = false
+
+        override fun getHistory() = emptyList<CookHistoryEntry>()
 
         override fun undo(eventId: String, undoneOn: DomainLocalDate): KitchenSnapshot? {
             if (lastEvent?.id != eventId) return null
@@ -123,6 +136,27 @@ class Slice10WorkflowsTest {
             lastEvent = null
             return restored
         }
+    }
+
+    private class FakeCookingSessions : ActiveCookingSessionRepository {
+        private var active: ActiveCookingSession? = null
+
+        override fun getActive() = active
+        override fun start(session: ActiveCookingSession) {
+            check(active == null)
+            active = session
+        }
+        override fun setIngredientChecked(
+            sessionId: String,
+            ingredientId: dev.kitchenapp.core.domain.identifiers.RecipeIngredientId,
+            checked: Boolean,
+        ): ActiveCookingSession = error("Not used")
+        override fun dismissFirstReturnPrompt(sessionId: String) = Unit
+        override fun resume(sessionId: String): ActiveCookingSession = error("Not used")
+        override fun markAway(sessionId: String): Long? = null
+        override fun markReturned(sessionId: String): CookingReturn? = null
+        override fun claimCheckInDelivery(sessionId: String, generation: Long) = false
+        override fun clear(sessionId: String) { active = null }
     }
 
     private companion object {

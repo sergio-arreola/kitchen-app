@@ -11,10 +11,12 @@ import dev.kitchenapp.core.application.RecipeLibraryUseCases
 fun KitchenApp(
     workflows: RecipeLibraryUseCases,
     onRequestPaprikaArchive: ((String?) -> Unit) -> Unit,
+    cookingWorkflows: CookingWorkflows,
+    cookingPlatform: CookingPlatform = NoCookingPlatform,
 ) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme(),
     ) {
-        KitchenAppNavigation(workflows, onRequestPaprikaArchive)
+        KitchenAppNavigation(workflows, onRequestPaprikaArchive, cookingWorkflows, cookingPlatform)
     }
 }

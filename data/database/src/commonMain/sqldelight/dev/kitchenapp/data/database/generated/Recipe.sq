@@ -170,11 +170,45 @@ DELETE FROM ingredient_preference;
 
 
 insertCookEvent:
-INSERT INTO cook_event(id, recipe_id, cooked_on, servings, note) VALUES (?, ?, ?, ?, ?);
+INSERT INTO cook_event(id, recipe_id, cooked_on, servings, note, leftover_follow_up_pending)
+VALUES (?, ?, ?, ?, ?, ?);
+
+selectCookHistory:
+SELECT id, recipe_id AS recipeId, cooked_on AS cookedOn, servings, note,
+       leftover_follow_up_pending AS leftoverFollowUpPending,
+       EXISTS(SELECT 1 FROM leftover WHERE cook_event_id = cook_event.id) AS hasLeftovers
+FROM cook_event ORDER BY cooked_on DESC, id DESC;
+
+selectCookEventFollowUpPending:
+SELECT leftover_follow_up_pending FROM cook_event WHERE id = ?;
+
+markCookEventFollowUpComplete:
+UPDATE cook_event SET leftover_follow_up_pending = 0 WHERE id = ? AND leftover_follow_up_pending = 1;
+
+claimLeftoverReminder:
+UPDATE cook_event SET leftover_reminder_claimed = 1
+WHERE id = ? AND leftover_follow_up_pending = 1 AND leftover_reminder_claimed = 0
+  AND NOT EXISTS (SELECT 1 FROM cook_event_undo WHERE event_id = cook_event.id);
+
+markCookEventFollowUpDismissed:
+UPDATE cook_event SET leftover_follow_up_pending = 0 WHERE id = ? AND leftover_follow_up_pending = 1;
+
+clearCookEventFollowUp:
+UPDATE cook_event SET leftover_follow_up_pending = 0 WHERE id = ?;
+
+selectCookEventExistsAndNotUndone:
+SELECT cook_event.id FROM cook_event
+LEFT JOIN cook_event_undo ON cook_event_undo.event_id = cook_event.id
+WHERE cook_event.id = ? AND cook_event_undo.event_id IS NULL;
 
 insertCookConsumption:
 INSERT INTO cook_event_consumption(event_id, lot_id, quantity_numerator, quantity_denominator, unit_code)
 VALUES (?, ?, ?, ?, ?);
+
+selectCookConsumptions:
+SELECT lot_id AS lotId, quantity_numerator AS quantityNumerator,
+       quantity_denominator AS quantityDenominator, unit_code AS unitCode
+FROM cook_event_consumption WHERE event_id = ? ORDER BY lot_id;
 
 selectLotBeforeCooking:
 SELECT id, ingredient_id AS ingredientId, location_id AS locationId,
@@ -218,6 +252,76 @@ SELECT event_id FROM cook_event_undo WHERE event_id = ?;
 
 insertCookEventUndo:
 INSERT INTO cook_event_undo(event_id, undone_on) VALUES (?, ?);
+
+deleteActiveCookingSession:
+DELETE FROM cooking_session WHERE singleton = 1 AND id = ?;
+
+selectActiveCookingSession:
+SELECT id, recipe_id AS recipeId, servings, first_return_state AS firstReturnState,
+       away_generation AS awayGeneration, is_away AS isAway,
+       delivered_check_in_generation AS deliveredCheckInGeneration,
+       resume_required AS resumeRequired
+FROM cooking_session WHERE singleton = 1;
+
+selectCheckedCookingIngredients:
+SELECT recipe_ingredient_id FROM cooking_session_checked_ingredient
+WHERE session_id = ? ORDER BY recipe_ingredient_id;
+
+insertCookingSession:
+INSERT INTO cooking_session(
+  singleton, id, recipe_id, servings, first_return_state, away_generation, is_away,
+  delivered_check_in_generation, resume_required
+) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateCookingSession:
+UPDATE cooking_session SET
+  servings = ?, first_return_state = ?, away_generation = ?, is_away = ?,
+  delivered_check_in_generation = ?, resume_required = ?
+WHERE singleton = 1 AND id = ?;
+
+deleteCheckedCookingIngredients:
+DELETE FROM cooking_session_checked_ingredient WHERE session_id = ?;
+
+insertCheckedCookingIngredient:
+INSERT OR IGNORE INTO cooking_session_checked_ingredient(session_id, recipe_ingredient_id) VALUES (?, ?);
+
+deleteCheckedCookingIngredient:
+DELETE FROM cooking_session_checked_ingredient WHERE session_id = ? AND recipe_ingredient_id = ?;
+
+dismissCookingReturnPrompt:
+UPDATE cooking_session SET first_return_state = 'DISMISSED'
+WHERE singleton = 1 AND id = ? AND first_return_state = 'PROMPTED';
+
+resumeCookingSession:
+UPDATE cooking_session SET first_return_state = 'CONFIRMED', resume_required = 0
+WHERE singleton = 1 AND id = ?;
+
+markCookingSessionAway:
+UPDATE cooking_session SET away_generation = away_generation + 1, is_away = 1
+WHERE singleton = 1 AND id = ? AND is_away = 0 AND resume_required = 0;
+
+markCookingSessionReturned:
+UPDATE cooking_session SET
+  is_away = 0,
+  first_return_state = CASE WHEN first_return_state = 'NOT_RETURNED' THEN 'PROMPTED' ELSE first_return_state END,
+  resume_required = CASE
+    WHEN first_return_state = 'NOT_RETURNED'
+      OR delivered_check_in_generation = away_generation THEN 1
+    ELSE resume_required
+  END
+WHERE singleton = 1 AND id = ? AND is_away = 1;
+
+claimCookingCheckIn:
+UPDATE cooking_session SET delivered_check_in_generation = ?
+WHERE singleton = 1 AND id = ? AND is_away = 1 AND away_generation = ?
+  AND resume_required = 0
+  AND (delivered_check_in_generation IS NULL OR delivered_check_in_generation != ?);
+
+selectChangedRows:
+SELECT changes();
+
+selectCookingSessionById:
+SELECT id FROM cooking_session WHERE singleton = 1 AND id = ?;
 
 selectCurrentShoppingList:
 SELECT created_at AS createdAt FROM shopping_list WHERE id = 'current';
