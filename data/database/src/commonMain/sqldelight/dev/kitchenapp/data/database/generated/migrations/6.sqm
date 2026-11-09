@@ -1,0 +1,24 @@
+CREATE TABLE recipe_meal_type (
+  recipe_id TEXT NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  PRIMARY KEY (recipe_id, position)
+);
+
+CREATE TABLE recipe_equipment_requirement (
+  recipe_id TEXT NOT NULL REFERENCES recipe(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  equipment TEXT NOT NULL CHECK (length(trim(equipment)) > 0),
+  kind TEXT NOT NULL CHECK (kind IN ('REQUIRED', 'PREFERRED', 'SUBSTITUTABLE', 'IRRELEVANT')),
+  PRIMARY KEY (recipe_id, position)
+);
+
+CREATE TABLE recipe_equipment_substitute (
+  recipe_id TEXT NOT NULL,
+  requirement_position INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  PRIMARY KEY (recipe_id, requirement_position, position),
+  FOREIGN KEY (recipe_id, requirement_position)
+    REFERENCES recipe_equipment_requirement(recipe_id, position) ON DELETE CASCADE
+);

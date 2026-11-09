@@ -1,5 +1,6 @@
 package dev.kitchenapp.core.domain.recipe
 
+import dev.kitchenapp.core.domain.household.EquipmentRequirement
 import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.time.DomainInstant
 
@@ -20,11 +21,20 @@ data class Recipe(
     val totalTimeSeconds: Long? = null,
     val imageSourceUrl: String? = null,
     val importedAt: DomainInstant? = null,
+    val mealTypes: List<String> = emptyList(),
+    val equipmentRequirements: List<EquipmentRequirement> = emptyList(),
 ) {
     init {
         require(name.isNotBlank()) { "Recipe name cannot be blank" }
         require(ingredients.map { it.id }.distinct().size == ingredients.size) {
             "Recipe contains duplicate ingredient row ids"
+        }
+        require(mealTypes.none(String::isBlank)) { "Meal type cannot be blank" }
+        require(mealTypes.map { it.trim().lowercase() }.distinct().size == mealTypes.size) {
+            "Meal types must be unique"
+        }
+        require(equipmentRequirements.map { it.equipment.trim().lowercase() }.distinct().size == equipmentRequirements.size) {
+            "Equipment requirements must be unique"
         }
         require(listOf(prepTimeSeconds, cookTimeSeconds, chillingTimeSeconds, totalTimeSeconds)
             .all { it == null || it >= 0 }

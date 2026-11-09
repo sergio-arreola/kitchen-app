@@ -15,8 +15,6 @@ import dev.kitchenapp.core.engine.matching.MealQuery
 import dev.kitchenapp.core.engine.matching.RecipeMatch
 import dev.kitchenapp.core.engine.matching.RecipeMatchMetadata
 import dev.kitchenapp.core.engine.matching.RecipeMatcher
-import dev.kitchenapp.core.engine.matching.ShoppingAggregator
-import dev.kitchenapp.core.engine.matching.ShoppingLine
 
 data class SuggestionOptions(
     val query: MealQuery = MealQuery(),
@@ -74,14 +72,6 @@ class GetSuggestions(
             ),
         )
     }
-}
-
-/** Persist one selected recipe set as a shopping list using the existing deterministic aggregator. */
-class CreateShoppingList(
-    private val aggregator: ShoppingAggregator = ShoppingAggregator(),
-) {
-    fun create(selectedRecipes: List<RecipeMatch>): List<ShoppingLine> =
-        aggregator.aggregate(selectedRecipes)
 }
 
 /** Replaces editable inventory while preserving repository validation and atomic persistence. */

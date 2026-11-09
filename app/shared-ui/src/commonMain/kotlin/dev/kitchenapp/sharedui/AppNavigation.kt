@@ -32,6 +32,9 @@ import kotlinx.serialization.modules.subclass
 private data object RecipesRoute : NavKey
 
 @Serializable
+private data object RecommendationsRoute : NavKey
+
+@Serializable
 private data class RecipeDetailsRoute(val recipeId: String) : NavKey
 
 @Serializable
@@ -53,6 +56,7 @@ private val appNavigationSavedStateConfiguration = SavedStateConfiguration {
     serializersModule = SerializersModule {
         polymorphic(NavKey::class) {
             subclass(serializer = RecipesRoute.serializer())
+            subclass(serializer = RecommendationsRoute.serializer())
             subclass(serializer = RecipeDetailsRoute.serializer())
             subclass(serializer = RecipeImportRoute.serializer())
             subclass(serializer = RecipeImportReviewRoute.serializer())
@@ -71,6 +75,7 @@ private data class AppDestination(
 
 private val appDestinations = listOf(
     AppDestination(RecipesRoute, "Recipes", "R"),
+    AppDestination(RecommendationsRoute, "Make", "M"),
     AppDestination(KitchenRoute, "Kitchen", "K"),
     AppDestination(CookingRoute, "Cook", "C"),
     AppDestination(ShoppingRoute, "Shopping", "S"),
@@ -86,6 +91,7 @@ internal fun KitchenAppNavigation(
     val currentRoute = backStack.lastOrNull()
     val selectedTopLevelRoute = when (currentRoute) {
         is RecipeDetailsRoute, RecipeImportRoute, is RecipeImportReviewRoute, RecipesRoute -> RecipesRoute
+        RecommendationsRoute -> RecommendationsRoute
         KitchenRoute -> KitchenRoute
         CookingRoute -> CookingRoute
         ShoppingRoute -> ShoppingRoute
@@ -199,6 +205,13 @@ internal fun KitchenAppNavigation(
                             )
                         }
 
+                        RecommendationsRoute -> NavEntry(key) {
+                            RecommendationScreen(workflows = workflows) {
+                                backStack.clear()
+                                backStack.add(ShoppingRoute)
+                            }
+                        }
+
                         KitchenRoute -> NavEntry(key) {
                             KitchenSetupScreen(workflows = workflows)
                         }
@@ -219,13 +232,7 @@ internal fun KitchenAppNavigation(
                         }
 
                         ShoppingRoute -> NavEntry(key) {
-                            AppContentStatePanel(
-                                AppContentState(
-                                    kind = AppContentStateKind.Empty,
-                                    title = "No shopping list yet",
-                                    message = "Missing ingredients from selected recipes will appear here.",
-                                ),
-                            )
+                            ShoppingListScreen(workflows = workflows)
                         }
 
                         else -> error("Unknown app destination: $key")

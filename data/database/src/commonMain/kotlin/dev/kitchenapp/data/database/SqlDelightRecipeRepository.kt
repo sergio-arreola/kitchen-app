@@ -4,6 +4,8 @@ import dev.kitchenapp.core.application.RecipeImageRepository
 import dev.kitchenapp.core.application.RecipeRepository
 import dev.kitchenapp.core.domain.enums.ApproximateLevel
 import dev.kitchenapp.core.domain.enums.IngredientImportance
+import dev.kitchenapp.core.domain.household.EquipmentRequirement
+import dev.kitchenapp.core.domain.household.EquipmentRequirementKind
 import dev.kitchenapp.core.domain.identifiers.IngredientId
 import dev.kitchenapp.core.domain.identifiers.RecipeId
 import dev.kitchenapp.core.domain.identifiers.RecipeIngredientId
@@ -76,6 +78,33 @@ class SqlDelightRecipeRepository(
             queries.deleteRecipeCategories(id)
             categories.forEachIndexed { index, category ->
                 queries.insertRecipeCategory(id, index.toLong(), category)
+            }
+
+            queries.deleteRecipeMealTypes(id)
+            recipe.mealTypes.forEachIndexed { index, mealType ->
+                queries.insertRecipeMealType(id, index.toLong(), mealType)
+            }
+
+            queries.deleteRecipeEquipmentSubstitutes(id)
+            queries.deleteRecipeEquipmentRequirements(id)
+            recipe.equipmentRequirements.forEachIndexed { index, requirement ->
+                val position = index.toLong()
+                queries.insertRecipeEquipmentRequirement(
+                    id,
+                    position,
+                    requirement.equipment,
+                    requirement.kind.name,
+                )
+                requirement.acceptableSubstitutes
+                    .sortedWith(compareBy({ it.lowercase() }, { it }))
+                    .forEachIndexed { substituteIndex, substitute ->
+                        queries.insertRecipeEquipmentSubstitute(
+                            id,
+                            position,
+                            substituteIndex.toLong(),
+                            substitute,
+                        )
+                    }
             }
 
             queries.deleteRecipeIngredients(id)
@@ -174,6 +203,17 @@ class SqlDelightRecipeRepository(
                 rawLine = row.rawLine,
             )
         }
+        val queries = database.recipeQueries
+        val mealTypes = queries.selectRecipeMealTypes(id).executeAsList()
+        val substitutesByRequirement = queries.selectRecipeEquipmentSubstitutes(id).executeAsList()
+            .groupBy({ it.requirementPosition }, { it.name })
+        val equipmentRequirements = queries.selectRecipeEquipmentRequirements(id).executeAsList().map { row ->
+            EquipmentRequirement(
+                equipment = row.equipment,
+                kind = enumValueOf<EquipmentRequirementKind>(row.kind),
+                acceptableSubstitutes = substitutesByRequirement[row.position].orEmpty().toSet(),
+            )
+        }
         return DomainRecipe(
             id = RecipeId(Uuid.parse(id)),
             name = name,
@@ -190,6 +230,8 @@ class SqlDelightRecipeRepository(
             totalTimeSeconds = totalTimeSeconds,
             imageSourceUrl = imageSourceUrl,
             importedAt = importedAt?.let { DomainInstant(Instant.parse(it)) },
+            mealTypes = mealTypes,
+            equipmentRequirements = equipmentRequirements,
         )
     }
 }
