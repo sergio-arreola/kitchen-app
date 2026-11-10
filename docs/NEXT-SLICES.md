@@ -4,22 +4,22 @@ This document records implementation scope and acceptance gates. Slices 1–11 a
 
 ## Roadmap status
 
-| Slice | Scope | Status |
-|---|---|---|
-| 0 | Repository/bootstrap verification | Complete; see [BOOTSTRAP.md](BOOTSTRAP.md) |
-| 1 | Domain primitives | Implemented |
-| 2 | Paprika archive inspection | Implemented |
-| 3 | Paprika recipe-draft import | Implemented |
-| 4 | Ingredient-line parsing | Implemented |
-| 5 | Canonical ingredients and recipe domain | Implemented |
-| 6 | Kitchen inventory and freshness | Implemented |
-| 7 | Quantity, equipment, and exclusion evaluation | Implemented |
-| 8 | Explainable matching, ranking, and simulation fixtures | Implemented |
-| 9 | Local SQLite persistence | Implemented |
-| 10 | Application workflows and cooking transactions | Implemented |
-| 11 | URL/JSON-LD and manual recipe import | Implemented |
-| 12 | Android-first product UI and desktop engineering UI | In progress |
-| 13 | Backup/export, offline acceptance, and V1 closeout | Planned; target release 1.0.0 |
+| Slice | Scope                                                  | Status                                     |
+|-------|--------------------------------------------------------|--------------------------------------------|
+| 0     | Repository/bootstrap verification                      | Complete; see [BOOTSTRAP.md](BOOTSTRAP.md) |
+| 1     | Domain primitives                                      | Implemented                                |
+| 2     | Paprika archive inspection                             | Implemented                                |
+| 3     | Paprika recipe-draft import                            | Implemented                                |
+| 4     | Ingredient-line parsing                                | Implemented                                |
+| 5     | Canonical ingredients and recipe domain                | Implemented                                |
+| 6     | Kitchen inventory and freshness                        | Implemented                                |
+| 7     | Quantity, equipment, and exclusion evaluation          | Implemented                                |
+| 8     | Explainable matching, ranking, and simulation fixtures | Implemented                                |
+| 9     | Local SQLite persistence                               | Implemented                                |
+| 10    | Application workflows and cooking transactions         | Implemented                                |
+| 11    | URL/JSON-LD and manual recipe import                   | Implemented                                |
+| 12    | Android-first product UI and desktop engineering UI    | In progress                                |
+| 13    | Backup/export, offline acceptance, and V1 closeout     | Planned; target release 1.0.0              |
 
 The sequence keeps domain decisions and the recommendation engine testable before growing the UI. The product target is Android; Desktop/JVM remains the development and inspection target. iOS portability is an architectural goal, not a V1 delivery requirement. External recipe discovery, barcode/photo/receipt recognition, cloud sync, household sharing, and AI recipe generation are later work.
 
@@ -523,7 +523,7 @@ move from source import into local storage.
   not presented as their import time.
 - Capture and display prep, cook, and total times when a source supplies them.
   Preserve missing values as unknown; do not infer prep or total time from
-  cook time. Retain distinct source-provided chilling/rest time where present.
+  cook time. Retain distinct source-provided chilling/rest time when present.
 - Preserve source images for offline recipe details. For URL imports, capture
   the Schema.org image URL and retain a local image copy when it can be fetched.
   For Paprika imports, copy the referenced archive photo into app-managed
@@ -573,7 +573,7 @@ servings regression. Merge before PR 12.4.
 - Manage an explicit household-rule list. Users manually add an ingredient
   rule and choose Allergen, Avoid, or Dislike; stocked or imported ingredients
   do not become rules automatically. Allergen and Avoid are hard exclusions;
-  Dislike is a soft ranking penalty. Allow deleting a rule independently from
+  Dislike is a soft ranking penalty. Allow deleting a rule independently of
   the canonical ingredient.
 - For V1, these rules apply to the household as a whole.
 

@@ -33,8 +33,8 @@ import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
 import dev.kitchenapp.data.importers.DefaultRecipeImageLoader
 import dev.kitchenapp.data.importers.KtorRecipePageFetcher
 import dev.kitchenapp.data.importers.archive.ZipFileArchiveReader
-import dev.kitchenapp.sharedui.KitchenApp
 import dev.kitchenapp.sharedui.CookingWorkflows
+import dev.kitchenapp.sharedui.NoCookingPlatform
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -84,9 +84,10 @@ fun main() = application {
         onCloseRequest = ::exitApplication,
         title = "Kitchen",
     ) {
-        KitchenApp(
+        DesktopWorkspace(
             workflows = workflows,
             cookingWorkflows = cookingWorkflows,
+            cookingPlatform = NoCookingPlatform,
             onRequestPaprikaArchive = { onSelected ->
                 val dialog = FileDialog(null as Frame?, "Choose Paprika archive", FileDialog.LOAD)
                 dialog.isVisible = true
