@@ -171,6 +171,9 @@ data class CookHistoryEntry(
     val event: CookEvent,
     val leftoverFollowUpPending: Boolean,
     val hasLeftovers: Boolean,
+    val leftoverReminderClaimed: Boolean = false,
+    val undoneOn: DomainLocalDate? = null,
+    val inventoryBefore: List<InventoryLot> = emptyList(),
 )
 
 /** Starting a recipe persists a new session but never changes inventory. */
