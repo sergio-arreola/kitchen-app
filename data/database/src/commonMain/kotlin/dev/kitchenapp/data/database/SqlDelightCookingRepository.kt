@@ -175,6 +175,34 @@ class SqlDelightCookingRepository(
                 ),
                 leftoverFollowUpPending = row.leftoverFollowUpPending == 1L,
                 hasLeftovers = row.hasLeftovers,
+                leftoverReminderClaimed = row.leftoverReminderClaimed == 1L,
+                undoneOn = row.undoneOn?.asDate(),
+                inventoryBefore = database.recipeQueries.selectLotBeforeCooking(row.id).executeAsList()
+                    .map { previous ->
+                        InventoryLot(
+                            id = InventoryLotId(Uuid.parse(previous.id)),
+                            ingredientId = IngredientId(Uuid.parse(previous.ingredientId)),
+                            locationId = KitchenLocationId(Uuid.parse(previous.locationId)),
+                            amount = when (previous.amountKind) {
+                                "PRESENCE_ONLY" -> InventoryAmount.PresenceOnly
+                                "APPROXIMATE" -> InventoryAmount.Approximate(
+                                    Rational.of(previous.quantityNumerator!!, previous.quantityDenominator!!),
+                                    previous.unitCode?.asUnit(),
+                                    enumValueOf<ApproximateLevel>(requireNotNull(previous.approximateLevel)),
+                                )
+                                "EXACT" -> InventoryAmount.Exact(
+                                    Rational.of(previous.quantityNumerator!!, previous.quantityDenominator!!),
+                                    previous.unitCode?.asUnit(),
+                                )
+                                else -> error("Unknown persisted inventory amount kind: ${previous.amountKind}")
+                            },
+                            purchasedOn = previous.purchasedOn?.asDate(),
+                            openedOn = previous.openedOn?.asDate(),
+                            frozenOn = previous.frozenOn?.asDate(),
+                            manufacturerUseBy = previous.manufacturerUseBy?.asDate(),
+                            userUseBy = previous.userUseBy?.asDate(),
+                        )
+                    },
             )
         }
 

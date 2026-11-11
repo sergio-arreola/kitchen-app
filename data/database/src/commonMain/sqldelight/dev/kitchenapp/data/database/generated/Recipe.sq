@@ -176,8 +176,12 @@ VALUES (?, ?, ?, ?, ?, ?);
 selectCookHistory:
 SELECT id, recipe_id AS recipeId, cooked_on AS cookedOn, servings, note,
        leftover_follow_up_pending AS leftoverFollowUpPending,
+       leftover_reminder_claimed AS leftoverReminderClaimed,
+       cook_event_undo.undone_on AS undoneOn,
        EXISTS(SELECT 1 FROM leftover WHERE cook_event_id = cook_event.id) AS hasLeftovers
-FROM cook_event ORDER BY cooked_on DESC, id DESC;
+FROM cook_event
+LEFT JOIN cook_event_undo ON cook_event_undo.event_id = cook_event.id
+ORDER BY cooked_on DESC, id DESC;
 
 selectCookEventFollowUpPending:
 SELECT leftover_follow_up_pending FROM cook_event WHERE id = ?;

@@ -662,18 +662,87 @@ Make the local-first contract dependable before calling the first release
 complete. The V1 release target is 1.0.0 after this slice passes its acceptance
 gate.
 
-### Components
+Implement Slice 13 as the ordered PRs below. Each PR must receive independent
+review, pass its verification and the repository check/CI gate, and merge before
+work begins on the next PR.
 
-- Versioned export/import for recipes, categories, import timestamps, timing
-  metadata, image assets and their source links, inventory, rules, equipment,
-  and cook/leftover history.
-- Restore preview, validation, and explicit duplicate/conflict behavior.
-- Data-integrity checks and documented migration/backup recovery procedures.
-- End-to-end acceptance corpus spanning import, normalization, image/time
-  metadata, category organization, inventory, recommendations, cooking,
-  depletion, leftovers, and shopping.
-- Clear privacy disclosure for optional network-backed URL and image retrieval
-  and any future interpretation service.
+### PR 13.1 — Versioned backup format and export
+
+- Define a versioned, portable backup archive with a manifest, structured data,
+  and separate image assets.
+- Export recipes, canonical ingredients, categories, import timestamps, timing
+  and recommendation metadata, source URLs, image source links and locally
+  stored images, inventory and locations, household rules, equipment,
+  cook/leftover history, and the current shopping list including item checked
+  states and source recipe links.
+- Produce a consistent snapshot from the local database and include asset
+  integrity information. Export must work offline and must not depend on cloud
+  services.
+- Keep personal recipe text out of committed fixtures.
+
+**Independent review and verification:** Review the archive contract and
+snapshot consistency. Tests round-trip every exported field, including
+shopping-list checked states and image bytes; verify identifiers and source
+attribution remain stable. Run affected tests and `./gradlew check`. Merge
+before PR 13.2.
+
+### PR 13.2 — Restore validation and atomic import
+
+- Validate archive structure and supported format versions before writing data.
+  Reject malformed, corrupt, incomplete, or unsupported backups with actionable
+  errors.
+- Check identifier and reference integrity, image paths and hashes, and
+  duplicate/conflicting recipes and categories.
+- Provide a restore preview with counts, warnings, and explicit user choices
+  for conflicts. Never silently overwrite or drop existing data.
+- Stage image assets and apply database changes with rollback behavior so a
+  failed restore cannot leave partial records or orphaned images.
+- Restore shopping-list contents and each item’s checked state.
+
+**Independent review and verification:** Review path validation, integrity
+checks, conflict choices, file/database transaction boundaries, and rollback.
+Tests cover valid archives, older supported versions, corrupt archives, missing
+assets, duplicates, conflicts, and failures that leave existing data intact.
+Verify restore works offline. Run affected tests and `./gradlew check`. Merge
+before PR 13.3.
+
+### PR 13.3 — Android backup and restore workflow
+
+- Add Android export and import entry points using the system file picker.
+- Show restore preview, validation warnings, duplicate/conflict choices, and
+  explicit confirmation before applying a restore.
+- Present loading, empty, review, success, and error states. Keep backup and
+  restore operations in application workflows rather than issuing database
+  queries from Compose UI.
+- Allow export to a user-selected location and import from a selected backup
+  without requiring an account or network connection.
+
+**Independent review and verification:** Review Android platform file handling,
+offline behavior, and UI-to-application boundaries. On Android, exercise export,
+import, preview, cancel, confirm, invalid backup, conflict resolution, and
+reloaded recipes, images, inventory, cook/leftover history, and shopping-list
+checked states after restart. Run relevant Android tests and `./gradlew check`.
+Merge before PR 13.4.
+
+### PR 13.4 — V1 offline acceptance and closeout
+
+- Exercise an end-to-end acceptance corpus spanning URL, Paprika, and manual
+  import; normalization; source metadata and images; category organization;
+  inventory and rules; recommendations; cooking and leftovers; shopping; and
+  backup/restore.
+- Verify recovery from an older supported backup and document backup,
+  restore, and migration recovery procedures.
+- Document privacy behavior for optional network-backed URL and image retrieval.
+- Record the V1 acceptance results and closeout criteria. The target product
+  version becomes 1.0.0 only after this gate passes.
+
+**Independent review and verification:** Review the acceptance corpus and
+recovery/privacy documentation. Verify core flows after restore and with
+networking disabled; verify shopping-list checked states survive restart and
+restore. Reviewed corpora reach at least 95% Paprika import success and 95%
+ingredient normalization accuracy, and the matching benchmark has zero known
+quantity-related false “Ready Now” outcomes. Run the repository check and all
+acceptance tests before declaring V1 complete.
 
 Cloud sync, household sharing, external recipe discovery, barcode/photo/receipt
 recognition, nutrition optimization, and generated recipes remain outside V1.
@@ -693,8 +762,11 @@ recognition, nutrition optimization, and generated recipes remain outside V1.
 - The matching benchmark has zero known quantity-related false “Ready Now”
   outcomes.
 - Recommendations explain their fit and constraints.
-- Recipes, images, inventory, leftovers, and backup/restore survive app restart.
+- Recipes, images, inventory, rules, equipment, cook/leftover history, shopping
+  lists and their checked states, and backup/restore survive app restart.
+- Backup export/import and recovery work offline.
 - No account or subscription is required for the core local experience.
+
 
 ---
 
