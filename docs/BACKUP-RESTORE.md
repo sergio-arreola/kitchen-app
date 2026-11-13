@@ -1,8 +1,9 @@
-# Backup restore service contract
+# Backup and restore contract
 
-This document describes the intended service behavior for PR 13.2. The Android
-file picker and the screens for reviewing and confirming a restore are planned
-for PR 13.3.
+This document describes the local backup service behavior and its Android
+workflow. PR 13.2 supplies validation, preview, and transactional restore;
+PR 13.3 adds the Android file picker and screens for reviewing and confirming
+a restore.
 
 ## Validate before changing data
 
@@ -34,9 +35,12 @@ The preview also warns if restored cook events cannot be undone because a
 historical inventory location is absent. Shopping-list contents, checked states,
 and source recipe links are restored from the backup as part of the replacement.
 
-PR 13.2 supplies validation, preview, and application services. PR 13.3 will
-show the preview and warnings, present the replacement or cancel choice, and
-obtain explicit confirmation.
+The Android backup screen opens the system document picker to export or import
+a `.kitchenbackup` file. It shows incoming and current counts, all preview
+warnings, and explicit **Replace all local backup-managed data** and **Cancel
+restore** actions. Picker cancellation, invalid files, and failed or stale
+restores do not apply data. If local state changes after preview, the app
+refreshes the preview and requires another confirmation.
 
 ## Atomic application
 
@@ -49,8 +53,13 @@ also clears legacy `inventory_transaction` records after the warning is shown. F
 commit must leave the existing database and images intact, without partial
 records.
 
-Export, validation, preview, and restore work without an account or network
-connection. Before applying a confirmed restore, the service rechecks the
-archive and snapshot fingerprints, local state fingerprint and record counts,
-legacy transaction count, and active-session state against the preview. If any
-value changed, it requires a refreshed preview and confirmation.
+Android reads selected files with a 128 MiB streaming limit before allocating
+the archive byte array. Export opens the selected document in write-and-truncate
+mode and reports success only after the stream closes. Export, validation,
+preview, and restore work without an account or network connection. Before
+applying a confirmed restore, the service rechecks the archive and snapshot
+fingerprints, local state fingerprint and record counts, legacy transaction
+count, and active-session state against the preview. If any value changed, it
+requires a refreshed preview and confirmation. Picker state survives Activity
+configuration changes; if process recreation loses the pending operation, the
+app reports that it was interrupted and does not apply a restore.

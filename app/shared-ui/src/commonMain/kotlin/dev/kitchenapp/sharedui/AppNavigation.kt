@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -25,8 +26,17 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import androidx.savedstate.serialization.SavedStateConfiguration
 import dev.kitchenapp.core.application.ActiveCookingSession
+import dev.kitchenapp.core.application.KitchenBackupRestoreDecision
+import dev.kitchenapp.core.application.KitchenBackupRestorePreview
+import dev.kitchenapp.core.application.KitchenBackupRestoreRequest
+import dev.kitchenapp.core.application.KitchenBackupWorkflows
 import dev.kitchenapp.core.application.RecipeImportCandidate
 import dev.kitchenapp.core.application.RecipeLibraryUseCases
+import dev.kitchenapp.core.domain.time.DomainInstant
+import kotlin.time.Clock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
@@ -56,6 +66,9 @@ internal data object CookingRoute : NavKey
 @Serializable
 private data object ShoppingRoute : NavKey
 
+@Serializable
+private data object BackupRoute : NavKey
+
 internal fun initialAppRoute(activeSession: ActiveCookingSession?): NavKey =
     if (activeSession == null) RecipesRoute else CookingRoute
 
@@ -70,6 +83,7 @@ private val appNavigationSavedStateConfiguration = SavedStateConfiguration {
             subclass(serializer = KitchenRoute.serializer())
             subclass(serializer = CookingRoute.serializer())
             subclass(serializer = ShoppingRoute.serializer())
+            subclass(serializer = BackupRoute.serializer())
         }
     }
 }
@@ -86,6 +100,7 @@ private val appDestinations = listOf(
     AppDestination(KitchenRoute, "Kitchen", "K"),
     AppDestination(CookingRoute, "Cook", "C"),
     AppDestination(ShoppingRoute, "Shopping", "S"),
+    AppDestination(BackupRoute, "Backup", "B"),
 )
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -95,6 +110,11 @@ internal fun KitchenAppNavigation(
     onRequestPaprikaArchive: ((String?) -> Unit) -> Unit,
     cookingWorkflows: CookingWorkflows,
     cookingPlatform: CookingPlatform,
+    backupWorkflows: KitchenBackupWorkflows?,
+    backupDocumentResult: BackupDocumentResult?,
+    onConsumeBackupDocumentResult: () -> Unit,
+    onRequestBackupExport: (ByteArray) -> Unit,
+    onRequestBackupImport: () -> Unit,
 ) {
     val coordinator = remember(cookingWorkflows, cookingPlatform) { CookingCoordinator(cookingWorkflows, cookingPlatform) }
     DisposableEffect(coordinator, cookingPlatform) {
@@ -133,12 +153,155 @@ internal fun KitchenAppNavigation(
         KitchenRoute -> KitchenRoute
         CookingRoute -> CookingRoute
         ShoppingRoute -> ShoppingRoute
+        BackupRoute -> BackupRoute
         else -> RecipesRoute
     }
     val importCandidates = remember { mutableStateListOf<RecipeImportCandidate>() }
     val completedSourceKeys = remember { mutableStateListOf<String>() }
     var recipeRefreshKey by remember { mutableIntStateOf(0) }
+    var backupRestoreState by remember { mutableStateOf<BackupRestoreScreenState>(BackupRestoreScreenState.Empty) }
+    var pendingRestore by remember { mutableStateOf<Pair<KitchenBackupRestoreRequest, KitchenBackupRestorePreview>?>(null) }
+    val backupCoroutineScope = rememberCoroutineScope()
+    val visibleDestinations = remember(backupWorkflows) {
+        appDestinations.filter { it.route != BackupRoute || backupWorkflows != null }
+    }
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
+
+    val exportBackup: () -> Unit = {
+        if (backupWorkflows != null) {
+            pendingRestore = null
+            backupRestoreState = BackupRestoreScreenState.Loading("Preparing backup…")
+            backupCoroutineScope.launch {
+                runCatching {
+                    withContext(Dispatchers.Default) {
+                        backupWorkflows.export.export(DomainInstant(Clock.System.now()))
+                    }
+                }.fold(
+                    onSuccess = { archive ->
+                        backupRestoreState = BackupRestoreScreenState.Loading("Choose where to save the backup.")
+                        onRequestBackupExport(archive)
+                    },
+                    onFailure = { error ->
+                        backupRestoreState = BackupRestoreScreenState.Error(
+                            error.message ?: "Could not prepare the backup.",
+                        )
+                    },
+                )
+            }
+        }
+    }
+    val importBackup: () -> Unit = {
+        if (backupWorkflows != null) {
+            pendingRestore = null
+            backupRestoreState = BackupRestoreScreenState.Loading("Choose a backup file.")
+            onRequestBackupImport()
+        }
+    }
+    val replaceAllBackupData: () -> Unit = {
+        val current = pendingRestore
+        if (backupWorkflows != null && current != null) {
+            val (request, preview) = current
+            backupRestoreState = BackupRestoreScreenState.Loading("Restoring backup.")
+            backupCoroutineScope.launch {
+                val result = withContext(Dispatchers.Default) {
+                    runCatching {
+                        backupWorkflows.applyRestore.apply(
+                            request,
+                            preview,
+                            KitchenBackupRestoreDecision.REPLACE_ALL_LOCAL_DATA,
+                        )
+                    }
+                }
+                result.fold(
+                    onSuccess = {
+                        pendingRestore = null
+                        importCandidates.clear()
+                        completedSourceKeys.clear()
+                        recipeRefreshKey++
+                        coordinator.refresh()
+                        backStack.clear()
+                        backStack.add(BackupRoute)
+                        backupRestoreState = BackupRestoreScreenState.Success(
+                            "Backup restored. Recipes, kitchen data, cooking history, and shopping list are reloaded.",
+                        )
+                    },
+                    onFailure = { error ->
+                        backupCoroutineScope.launch {
+                            val refreshed = withContext(Dispatchers.Default) {
+                                runCatching { backupWorkflows.previewRestore.preview(request) }
+                            }
+                            refreshed.fold(
+                                onSuccess = { newPreview ->
+                                    pendingRestore = request to newPreview
+                                    backupRestoreState = BackupRestoreScreenState.Review(
+                                        preview = newPreview,
+                                        message = "Restore was not applied. Review the updated preview and confirm again. " +
+                                            (error.message ?: ""),
+                                    )
+                                },
+                                onFailure = { refreshError ->
+                                    pendingRestore = null
+                                    backupRestoreState = BackupRestoreScreenState.Error(
+                                        "Restore was not applied, and the preview could not be refreshed. " +
+                                            (refreshError.message ?: error.message ?: "Try importing the backup again."),
+                                    )
+                                },
+                            )
+                        }
+                    },
+                )
+            }
+        }
+    }
+    val cancelBackupRestore: () -> Unit = {
+        pendingRestore = null
+        backupRestoreState = BackupRestoreScreenState.Empty
+    }
+
+    LaunchedEffect(backupDocumentResult) {
+        val result = backupDocumentResult ?: return@LaunchedEffect
+        when (result) {
+            BackupDocumentResult.ExportSucceeded -> {
+                backupRestoreState = BackupRestoreScreenState.Success("Backup saved.")
+            }
+
+            is BackupDocumentResult.ImportSelected -> {
+                if (backupWorkflows == null) {
+                    backupRestoreState = BackupRestoreScreenState.Error("Backup and restore are unavailable.")
+                } else {
+                    backupRestoreState = BackupRestoreScreenState.Loading("Validating backup and preparing preview.")
+                    runCatching {
+                        withContext(Dispatchers.Default) {
+                            val request = backupWorkflows.decode.decode(result.bytes)
+                            request to backupWorkflows.previewRestore.preview(request)
+                        }
+                    }.fold(
+                        onSuccess = { (request, preview) ->
+                            pendingRestore = request to preview
+                            backupRestoreState = BackupRestoreScreenState.Review(preview)
+                        },
+                        onFailure = { error ->
+                            pendingRestore = null
+                            backupRestoreState = BackupRestoreScreenState.Error(
+                                error.message ?: "Could not validate the selected backup.",
+                            )
+                        },
+                    )
+                }
+            }
+
+            BackupDocumentResult.PickerCancelled -> {
+                pendingRestore = null
+                backupRestoreState = BackupRestoreScreenState.Empty
+            }
+
+            is BackupDocumentResult.Failed -> {
+                pendingRestore = null
+                backupRestoreState = BackupRestoreScreenState.Error(result.message)
+            }
+        }
+        onConsumeBackupDocumentResult()
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val layoutType = if (maxWidth < 600.dp) {
@@ -150,7 +313,7 @@ internal fun KitchenAppNavigation(
         NavigationSuiteScaffold(
             layoutType = layoutType,
             navigationSuiteItems = {
-                appDestinations.forEach { destination ->
+                visibleDestinations.forEach { destination ->
                     item(
                         selected = destination.route == selectedTopLevelRoute,
                         onClick = {
@@ -268,6 +431,16 @@ internal fun KitchenAppNavigation(
 
                         ShoppingRoute -> NavEntry(key) {
                             ShoppingListScreen(workflows = workflows)
+                        }
+
+                        BackupRoute -> NavEntry(key) {
+                            BackupRestoreScreen(
+                                state = backupRestoreState,
+                                onExport = exportBackup,
+                                onImport = importBackup,
+                                onReplaceAll = replaceAllBackupData,
+                                onCancelRestore = cancelBackupRestore,
+                            )
                         }
 
                         else -> error("Unknown app destination: $key")
