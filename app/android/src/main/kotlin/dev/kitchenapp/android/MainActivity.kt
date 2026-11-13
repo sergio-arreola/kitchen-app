@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.ViewModelProvider
 import dev.kitchenapp.core.application.AddCanonicalIngredient
 import dev.kitchenapp.core.application.ConfigureKitchen
 import dev.kitchenapp.core.application.CreateRecipeCategory
@@ -18,6 +20,11 @@ import dev.kitchenapp.core.application.GetRecipe
 import dev.kitchenapp.core.application.GetRecipeImage
 import dev.kitchenapp.core.application.GetShoppingList
 import dev.kitchenapp.core.application.GetSuggestions
+import dev.kitchenapp.core.application.ApplyKitchenBackupRestore
+import dev.kitchenapp.core.application.DecodeKitchenBackupArchive
+import dev.kitchenapp.core.application.ExportKitchenBackup
+import dev.kitchenapp.core.application.KitchenBackupWorkflows
+import dev.kitchenapp.core.application.PreviewKitchenBackupRestore
 import dev.kitchenapp.core.application.CreateShoppingList
 import dev.kitchenapp.core.application.SetShoppingListItemChecked
 import dev.kitchenapp.core.application.ClearShoppingList
@@ -35,10 +42,14 @@ import dev.kitchenapp.data.database.SqlDelightCookingRepository
 import dev.kitchenapp.data.database.SqlDelightActiveCookingSessionRepository
 import dev.kitchenapp.data.database.SqlDelightRecipeRepository
 import dev.kitchenapp.data.database.SqlDelightShoppingListRepository
+import dev.kitchenapp.data.database.SqlDelightKitchenBackupRestoreRepository
+import dev.kitchenapp.data.database.SqlDelightKitchenBackupSnapshotRepository
 import dev.kitchenapp.data.importers.DefaultRecipeImportGateway
 import dev.kitchenapp.data.importers.DefaultRecipeImageLoader
 import dev.kitchenapp.data.importers.KtorRecipePageFetcher
 import dev.kitchenapp.data.importers.archive.AndroidContentResolverArchiveReader
+import dev.kitchenapp.data.backup.KitchenBackupArchiveExporter
+import dev.kitchenapp.data.backup.ValidatedKitchenBackupArchiveDecoder
 import dev.kitchenapp.sharedui.KitchenApp
 import dev.kitchenapp.sharedui.CookingWorkflows
 
@@ -48,6 +59,30 @@ class MainActivity : ComponentActivity() {
         cookingPlatform.permissionResult(granted)
     }
     private var onPaprikaArchiveSelected: ((String?) -> Unit)? = null
+    private val backupDocumentViewModel by lazy {
+        ViewModelProvider(this)[BackupDocumentViewModel::class.java]
+    }
+    private val backupDocumentAccess by lazy {
+        AndroidBackupDocumentAccess(applicationContext.contentResolver)
+    }
+
+    private val backupExportPicker = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        when {
+            !backupDocumentViewModel.isExportPending -> backupDocumentViewModel.reportInterrupted("Export")
+            uri == null -> backupDocumentViewModel.completeExport(null)
+            else -> backupDocumentViewModel.writeExport(uri, backupDocumentAccess)
+        }
+    }
+
+    private val backupImportPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        when {
+            !backupDocumentViewModel.isImportPending -> backupDocumentViewModel.reportInterrupted("Import")
+            uri == null -> backupDocumentViewModel.completeImport(Result.success(null))
+            else -> backupDocumentViewModel.readImport(uri, backupDocumentAccess)
+        }
+    }
 
     private val paprikaArchivePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -63,7 +98,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cookingPlatform = AndroidCookingPlatform(this) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
         cookingPlatform.create(intent)
         enableEdgeToEdge()
@@ -77,6 +114,19 @@ class MainActivity : ComponentActivity() {
         val shoppingLists = SqlDelightShoppingListRepository(database)
         val cookingWorkflows = CookingWorkflows(SqlDelightActiveCookingSessionRepository(database), recipes, kitchen, SqlDelightCookingRepository(database, kitchen))
         val archiveReader = AndroidContentResolverArchiveReader(contentResolver)
+        val backupSnapshots = SqlDelightKitchenBackupSnapshotRepository(database)
+        val backupExporter = KitchenBackupArchiveExporter()
+        val backupRestoreRepository = SqlDelightKitchenBackupRestoreRepository(
+            database = database,
+            snapshots = backupSnapshots,
+            fingerprinter = backupExporter,
+        )
+        val backupWorkflows = KitchenBackupWorkflows(
+            export = ExportKitchenBackup(backupSnapshots, backupExporter),
+            decode = DecodeKitchenBackupArchive(ValidatedKitchenBackupArchiveDecoder()),
+            previewRestore = PreviewKitchenBackupRestore(backupRestoreRepository),
+            applyRestore = ApplyKitchenBackupRestore(backupRestoreRepository),
+        )
         val workflows = RecipeLibraryUseCases(
             searchRecipes = SearchRecipes(recipes),
             getRecipe = GetRecipe(recipes),
@@ -108,6 +158,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            val backupDocumentResult = backupDocumentViewModel.result.collectAsState().value
             KitchenApp(
                 workflows = workflows,
                 cookingWorkflows = cookingWorkflows,
@@ -115,6 +166,25 @@ class MainActivity : ComponentActivity() {
                 onRequestPaprikaArchive = { onSelected ->
                     onPaprikaArchiveSelected = onSelected
                     paprikaArchivePicker.launch(arrayOf("*/*"))
+                },
+                backupWorkflows = backupWorkflows,
+                backupDocumentResult = backupDocumentResult,
+                onConsumeBackupDocumentResult = backupDocumentViewModel::consumeResult,
+                onRequestBackupExport = { bytes ->
+                    if (backupDocumentViewModel.beginExport(bytes)) {
+                        runCatching { backupExportPicker.launch("kitchen-backup.kitchenbackup") }
+                            .onFailure { error ->
+                                backupDocumentViewModel.completeExport(Result.failure(error))
+                            }
+                    }
+                },
+                onRequestBackupImport = {
+                    if (backupDocumentViewModel.beginImport()) {
+                        runCatching { backupImportPicker.launch(arrayOf("*/*")) }
+                            .onFailure { error ->
+                                backupDocumentViewModel.completeImport(Result.failure(error))
+                            }
+                    }
                 },
             )
         }
