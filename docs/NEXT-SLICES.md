@@ -688,29 +688,34 @@ before PR 13.2.
 
 ### PR 13.2 — Restore validation and atomic import
 
-- Validate archive structure and supported format versions before writing data.
+- Validate archive structure and the supported V1 format before writing data.
   Reject malformed, corrupt, incomplete, or unsupported backups with actionable
   errors.
-- Check identifier and reference integrity, image paths and hashes, and
-  duplicate/conflicting recipes and categories.
-- Provide a restore preview with counts, warnings, and explicit user choices
-  for conflicts. Never silently overwrite or drop existing data.
-- Stage image assets and apply database changes with rollback behavior so a
-  failed restore cannot leave partial records or orphaned images.
+- Check identifier and persisted-reference integrity, image paths and hashes,
+  and invalid records while preserving historical links that intentionally have
+  no foreign key.
+- Preview incoming and current record counts. Require an explicit all-or-nothing
+  choice to replace local backup-managed data or cancel; V1 does not merge
+  records or keep duplicate copies.
+- Block restore while a cooking session is active. Warn that legacy
+  inventory_transaction rows will be cleared because V1 does not back them up.
+- Apply database rows and image BLOBs in one transaction so failure leaves the
+  existing database unchanged.
 - Restore shopping-list contents and each item’s checked state.
 
 **Independent review and verification:** Review path validation, integrity
-checks, conflict choices, file/database transaction boundaries, and rollback.
-Tests cover valid archives, older supported versions, corrupt archives, missing
-assets, duplicates, conflicts, and failures that leave existing data intact.
-Verify restore works offline. Run affected tests and `./gradlew check`. Merge
-before PR 13.3.
+checks, explicit replace confirmation, active-session blocking, and transaction
+boundaries. Tests cover valid V1 archives, unsupported versions, corrupt
+archives, unsafe paths, missing assets, broken persisted references, stale
+previews, active cooks, and failures that leave existing data intact. Verify
+restore works offline. Run affected tests and `./gradlew check`. Merge before
+PR 13.3.
 
 ### PR 13.3 — Android backup and restore workflow
 
 - Add Android export and import entry points using the system file picker.
-- Show restore preview, validation warnings, duplicate/conflict choices, and
-  explicit confirmation before applying a restore.
+- Show restore preview, validation warnings, the full replacement warning,
+  legacy transaction cleanup, and explicit Replace All or Cancel actions.
 - Present loading, empty, review, success, and error states. Keep backup and
   restore operations in application workflows rather than issuing database
   queries from Compose UI.
@@ -719,7 +724,7 @@ before PR 13.3.
 
 **Independent review and verification:** Review Android platform file handling,
 offline behavior, and UI-to-application boundaries. On Android, exercise export,
-import, preview, cancel, confirm, invalid backup, conflict resolution, and
+import, preview, cancel, confirm, invalid backup, active-cook blocking, and
 reloaded recipes, images, inventory, cook/leftover history, and shopping-list
 checked states after restart. Run relevant Android tests and `./gradlew check`.
 Merge before PR 13.4.

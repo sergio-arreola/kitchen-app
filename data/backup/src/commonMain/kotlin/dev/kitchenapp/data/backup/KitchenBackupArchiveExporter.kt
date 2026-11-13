@@ -4,7 +4,9 @@ import dev.kitchenapp.core.application.CookHistoryEntry
 import dev.kitchenapp.core.application.KitchenBackupArchiveEncoder
 import dev.kitchenapp.core.application.KitchenBackupLeftover
 import dev.kitchenapp.core.application.KitchenBackupSnapshot
+import dev.kitchenapp.core.application.KitchenBackupSnapshotFingerprinter
 import dev.kitchenapp.core.domain.time.DomainInstant
+import kotlin.time.Instant
 import dev.kitchenapp.core.domain.inventory.InventoryAmount
 import dev.kitchenapp.core.domain.inventory.InventoryLot
 import dev.kitchenapp.core.domain.recipe.Recipe
@@ -15,12 +17,15 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /** Encodes a complete local snapshot as a versioned ZIP archive with separately stored image assets. */
-class KitchenBackupArchiveExporter : KitchenBackupArchiveEncoder {
+class KitchenBackupArchiveExporter : KitchenBackupArchiveEncoder, KitchenBackupSnapshotFingerprinter {
     private val json = Json {
         encodeDefaults = true
         explicitNulls = true
         prettyPrint = false
     }
+
+    override fun fingerprint(snapshot: KitchenBackupSnapshot): String =
+        sha256BackupBytes(encode(snapshot, FINGERPRINT_TIMESTAMP))
 
     override fun encode(snapshot: KitchenBackupSnapshot, exportedAt: DomainInstant): ByteArray {
         val images = snapshot.recipes.mapNotNull { entry ->
@@ -29,11 +34,25 @@ class KitchenBackupArchiveExporter : KitchenBackupArchiveEncoder {
                 path to image.bytes
             }
         }.sortedBy { it.first }
+        require(images.size <= MAX_BACKUP_ENTRY_COUNT - 2) {
+            "Backup has too many images to encode"
+        }
+        images.forEach { (path, bytes) ->
+            require(bytes.size in 1..MAX_BACKUP_IMAGE_BYTES) {
+                "Backup image exceeds the maximum allowed size: $path"
+            }
+            require(imageMediaTypeFromBytes(bytes) == mediaTypeForPath(path)) {
+                "Backup image bytes do not match the declared image type: $path"
+            }
+        }
         val assetMetadata = images.map { (path, bytes) ->
             BackupAsset(path, bytes.size.toLong(), sha256BackupBytes(bytes))
         }
         val payloadBytes = json.encodeToString(snapshot.toDocument(images.map { it.first }.toSet()))
             .encodeToByteArray()
+        require(payloadBytes.size in 1..MAX_BACKUP_PAYLOAD_BYTES) {
+            "Backup data document exceeds the maximum allowed size"
+        }
         val manifestBytes = json.encodeToString(
             BackupManifest(
                 exportedAt = exportedAt.toString(),
@@ -42,12 +61,34 @@ class KitchenBackupArchiveExporter : KitchenBackupArchiveEncoder {
                 assets = assetMetadata,
             ),
         ).encodeToByteArray()
+        require(manifestBytes.size <= MAX_BACKUP_MANIFEST_BYTES) {
+            "Backup manifest exceeds the maximum allowed size"
+        }
         val entries = buildList {
             add(BackupArchiveEntry(MANIFEST_PATH, manifestBytes))
             add(BackupArchiveEntry(PAYLOAD_PATH, payloadBytes))
             images.forEach { (path, bytes) -> add(BackupArchiveEntry(path, bytes)) }
         }
-        return zipBackupArchive(entries)
+        val uncompressedSize = entries.sumOf { it.bytes.size.toLong() }
+        require(uncompressedSize <= MAX_BACKUP_TOTAL_UNCOMPRESSED_BYTES) {
+            "Backup contents exceed the maximum allowed uncompressed size"
+        }
+        require(uncompressedSize <= MAX_BACKUP_ARCHIVE_BYTES - BACKUP_ARCHIVE_OVERHEAD_RESERVE) {
+            "Backup contents leave insufficient room for archive metadata"
+        }
+        val archive = zipBackupArchive(entries)
+        require(archive.size <= MAX_BACKUP_ARCHIVE_BYTES) {
+            "Encoded backup archive exceeds the maximum allowed size"
+        }
+        return archive
+    }
+
+    private fun mediaTypeForPath(path: String): String = when (path.substringAfterLast('.')) {
+        "jpg" -> "image/jpeg"
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        "gif" -> "image/gif"
+        else -> error("Unsupported backup image path: $path")
     }
 
     private fun imageExtension(mediaType: String): String = when (mediaType.lowercase()) {
@@ -107,9 +148,9 @@ class KitchenBackupArchiveExporter : KitchenBackupArchiveEncoder {
             BackupLeftover(
                 id = leftover.id.toString(),
                 cookEventId = leftover.cookEventId,
-                ingredientId = leftover.ingredientId.toString(),
+                ingredientId = leftover.ingredientId?.toString(),
                 name = leftover.name,
-                quantity = leftover.quantity.toBackup(),
+                quantity = leftover.quantity?.toBackup(),
                 unitCode = leftover.unit?.code,
                 preparedOn = leftover.preparedOn.toString(),
                 useBy = leftover.useBy?.toString(),
@@ -221,6 +262,7 @@ class KitchenBackupArchiveExporter : KitchenBackupArchiveEncoder {
     private companion object {
         const val MANIFEST_PATH = "manifest.json"
         const val PAYLOAD_PATH = "data.json"
+        val FINGERPRINT_TIMESTAMP = DomainInstant(Instant.parse("2000-01-01T00:00:00Z"))
     }
 }
 
@@ -373,9 +415,9 @@ data class BackupConsumedInventory(
 data class BackupLeftover(
     val id: String,
     val cookEventId: String,
-    val ingredientId: String,
+    val ingredientId: String?,
     val name: String,
-    val quantity: BackupRational,
+    val quantity: BackupRational?,
     val unitCode: String?,
     val preparedOn: String,
     val useBy: String?,
