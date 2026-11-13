@@ -38,9 +38,9 @@ data class RecipeBackupEntry(
 data class KitchenBackupLeftover(
     val id: InventoryLotId,
     val cookEventId: String,
-    val ingredientId: IngredientId,
+    val ingredientId: IngredientId?,
     val name: String,
-    val quantity: Rational,
+    val quantity: Rational?,
     val unit: UnitCode?,
     val preparedOn: DomainLocalDate,
     val useBy: DomainLocalDate?,

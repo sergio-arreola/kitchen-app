@@ -29,12 +29,14 @@ class SqlDelightKitchenBackupSnapshotRepository(
                 KitchenBackupLeftover(
                     id = InventoryLotId(Uuid.parse(row.id)),
                     cookEventId = row.cookEventId,
-                    ingredientId = IngredientId(Uuid.parse(requireNotNull(row.ingredientId))),
+                    ingredientId = row.ingredientId?.let { IngredientId(Uuid.parse(it)) },
                     name = row.name,
-                    quantity = Rational.of(
-                        requireNotNull(row.quantityNumerator),
-                        requireNotNull(row.quantityDenominator),
-                    ),
+                    quantity = when {
+                        row.quantityNumerator == null && row.quantityDenominator == null -> null
+                        row.quantityNumerator != null && row.quantityDenominator != null ->
+                            Rational.of(row.quantityNumerator, row.quantityDenominator)
+                        else -> error("Persisted leftover has an incomplete quantity")
+                    },
                     unit = row.unitCode?.let { code ->
                         UnitCode.fromCode(code) ?: error("Unknown persisted unit code: $code")
                     },

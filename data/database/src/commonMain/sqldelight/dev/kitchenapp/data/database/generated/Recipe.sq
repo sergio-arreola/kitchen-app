@@ -401,3 +401,23 @@ selectRecipeEquipmentSubstitutes:
 SELECT requirement_position AS requirementPosition, name
 FROM recipe_equipment_substitute WHERE recipe_id = ?
 ORDER BY requirement_position, position;
+
+deleteAllRecipesForBackupRestore:
+DELETE FROM recipe;
+
+deleteAllRecipeCategoryNamesForBackupRestore:
+DELETE FROM recipe_category_catalog;
+
+deleteLegacyInventoryTransactionsForBackupRestore:
+DELETE FROM inventory_transaction;
+
+selectLegacyInventoryTransactionCount:
+SELECT COUNT(*) FROM inventory_transaction;
+
+deleteAllCookEventsForBackupRestore:
+DELETE FROM cook_event;
+
+insertRestoredCookEvent:
+INSERT INTO cook_event(
+  id, recipe_id, cooked_on, servings, note, leftover_follow_up_pending, leftover_reminder_claimed
+) VALUES (?, ?, ?, ?, ?, ?, ?);

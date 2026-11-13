@@ -37,6 +37,7 @@ import java.util.zip.ZipInputStream
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -84,12 +85,14 @@ class KitchenBackupArchiveExporterTest {
                 EquipmentRequirement(
                     equipment = "Oven",
                     kind = EquipmentRequirementKind.SUBSTITUTABLE,
-                    acceptableSubstitutes = setOf("Air fryer"),
+                    acceptableSubstitutes = setOf("Air fryer", "air fryer"),
                 ),
             ),
         )
-        val imageBytes = byteArrayOf(0x01, 0x02, 0x03, 0x04)
-        val flour = Ingredient(ingredientId, "Synthetic flour", setOf("Test flour"))
+        val imageBytes = byteArrayOf(
+            0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        )
+        val flour = Ingredient(ingredientId, "Synthetic flour", setOf("Test flour", "test flour"))
         val milk = Ingredient(allergenId, "Synthetic milk")
         val lot = InventoryLot(
             id = lotId,
@@ -153,9 +156,9 @@ class KitchenBackupArchiveExporterTest {
                 KitchenBackupLeftover(
                     id = InventoryLotId.generate(),
                     cookEventId = event.id,
-                    ingredientId = ingredientId,
+                    ingredientId = null,
                     name = "Synthetic bread",
-                    quantity = Rational.of(2),
+                    quantity = null,
                     unit = UnitCode.SERVING,
                     preparedOn = eventDate,
                     useBy = DomainLocalDate(LocalDate.parse("2026-11-12")),
@@ -170,9 +173,29 @@ class KitchenBackupArchiveExporterTest {
         val entries = readEntries(archive)
         val manifest = Json.decodeFromString<BackupManifest>(entries.getValue("manifest.json").decodeToString())
         val document = Json.decodeFromString<BackupDocument>(entries.getValue("data.json").decodeToString())
+        val validated = KitchenBackupArchiveValidator().validate(archive)
+        val restored = validated.toSnapshot()
+        val restoreRequest = validated.toRestoreRequest()
+
+        assertEquals(validated.archiveFingerprint, restoreRequest.archiveFingerprint)
+        assertEquals(
+            KitchenBackupArchiveExporter().fingerprint(restoreRequest.snapshot),
+            restoreRequest.snapshotFingerprint,
+        )
 
         assertEquals(BackupManifest.FORMAT_ID, manifest.formatId)
+        assertEquals(recipe, restored.recipes.single().recipe)
+        assertEquals(RecipeImage(imageBytes, "image/png"), restored.recipes.single().image)
+        assertEquals(snapshot.shoppingList, restored.shoppingList)
+        assertEquals(snapshot.cookingHistory, restored.cookingHistory)
+        assertEquals(snapshot.leftovers, restored.leftovers)
+        assertEquals(snapshot.kitchen.inventory.lots, restored.kitchen.inventory.lots)
         assertEquals(BackupManifest.CURRENT_FORMAT_VERSION, manifest.formatVersion)
+        assertEquals(document, validated.document)
+        val validatedImage = validated.imageAssets.getValue("images/${recipe.id}.png")
+        assertContentEquals(imageBytes, validatedImage.bytes)
+        validatedImage.bytes[0] = 0
+        assertContentEquals(imageBytes, validatedImage.bytes)
         assertEquals("2026-11-10T12:00:00Z", manifest.exportedAt)
         assertEquals(entries.getValue("data.json").size.toLong(), manifest.payloadSizeBytes)
         assertEquals(sha256BackupBytes(entries.getValue("data.json")), manifest.payloadSha256)
@@ -182,14 +205,46 @@ class KitchenBackupArchiveExporterTest {
         assertEquals(recipe.id.toString(), document.shoppingList?.items?.single()?.sourceRecipeIds?.single())
         assertEquals(recipe.sourceUrl, document.recipes.single().sourceUrl)
         assertEquals(recipe.importedAt.toString(), document.recipes.single().importedAt)
-        assertEquals("Test flour", document.ingredients.single { it.id == ingredientId.toString() }.aliases.single())
+        assertEquals(
+            setOf("Test flour", "test flour"),
+            document.ingredients.single { it.id == ingredientId.toString() }.aliases.toSet(),
+        )
         assertEquals("EXACT", document.inventoryLots.single().amountKind)
         assertEquals(listOf(allergenId.toString()), document.hardExclusions)
         assertEquals(2, document.preferences.single().score)
         assertEquals(lotId.toString(), document.cookingHistory.single().inventoryBefore.single().id)
         assertEquals(event.id, document.leftovers.single().cookEventId)
+        assertEquals(null, document.leftovers.single().ingredientId)
+        assertEquals(null, document.leftovers.single().quantity)
         assertNotNull(manifest.assets.singleOrNull { it.path == "images/${recipe.id}.png" })
         assertTrue(manifest.assets.single().sha256.matches(Regex("[0-9a-f]{64}")))
+    }
+
+    @Test
+    fun `export rejects an image beyond archive size limits`() {
+        val recipe = Recipe(name = "Oversized image", ingredients = emptyList(), directionsText = "")
+        val snapshot = KitchenBackupSnapshot(
+            recipes = listOf(
+                RecipeBackupEntry(
+                    recipe,
+                    RecipeImage(ByteArray(MAX_BACKUP_IMAGE_BYTES + 1), "image/png"),
+                ),
+            ),
+            categories = emptyList(),
+            kitchen = KitchenSnapshot(),
+            shoppingList = null,
+            cookingHistory = emptyList(),
+            leftovers = emptyList(),
+        )
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            KitchenBackupArchiveExporter().encode(
+                snapshot,
+                DomainInstant(Instant.parse("2026-11-10T12:00:00Z")),
+            )
+        }
+
+        assertTrue(error.message.orEmpty().contains("image exceeds the maximum allowed size"))
     }
 
     private fun readEntries(bytes: ByteArray): Map<String, ByteArray> =
