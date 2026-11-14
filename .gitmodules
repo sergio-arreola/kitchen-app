@@ -1,0 +1,3 @@
+[submodule ".compose-skill"]
+	path = .compose-skill
+	url = https://github.com/aldefy/compose-skill.git

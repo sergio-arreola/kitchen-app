@@ -790,7 +790,7 @@ The following compatible refinements are deferred to 1.1.0 and later:
 - Ratings and Top Rated views.
 - Favorites.
 - Named Cookbook collections such as Thanksgiving, Christmas, and Hosting.
-- Trash and restore instead of permanent deletion.
+- Trash and restore with retention controls. V1 permanently removes recipe content but keeps completed cook/leftover history detached from its recipe ID. Later work can retain deleted recipe content and linked history in a restorable state for a user-selected window (for example 30 days), let the user permanently purge it sooner, or automatically purge it when the window expires; define how detached history and backups behave before implementation.
 - List/Grid view switching.
 - The full sort menu: Name, Rating, Most Recent, Prep Time, Cook Time, Total
   Time, and Servings, each ascending or descending. The V1 Most Recent view

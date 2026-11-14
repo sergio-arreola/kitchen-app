@@ -1,18 +1,15 @@
 package dev.kitchenapp.data.importers.archive
 
+import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.zip.GZIPOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import javax.imageio.ImageIO
 
-/**
- * Builds a redistributable `.paprikarecipes`-shaped zip from the
- * self-authored fixture recipes in `jvmTest/resources/paprika-fixture`.
- * All recipe entries are GZIP-compressed; the photo payload is stored plain.
- */
+/** Builds a redistributable archive from self-authored recipes and a generated image. */
 object PaprikaFixture {
-
     val recipeEntries = listOf(
         "plain-recipe",
         "recipe-with-photo",
@@ -25,18 +22,27 @@ object PaprikaFixture {
         "missing-optional-metadata",
     )
 
-    /** Builds the fixture archive inside [tempDir] and returns it. */
-    fun buildZip(tempDir: File, name: String = "fixture.paprikarecipes"): File {
+    val photoBytes: ByteArray = ByteArrayOutputStream().also { output ->
+        val image = BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB)
+        image.setRGB(0, 0, 0x5a7f3a)
+        check(ImageIO.write(image, "jpeg", output))
+    }.toByteArray()
+
+    fun buildZip(
+        tempDir: File,
+        name: String = "fixture.paprikarecipes",
+        extraRecipeJson: Map<String, String> = emptyMap(),
+    ): File {
         val file = File(tempDir, name)
         ZipOutputStream(file.outputStream()).use { out ->
             out.write("recipes/", ByteArray(0))
-
             recipeEntries.forEach { recipe ->
                 out.write("recipes/$recipe.json", gzip(load("recipes/$recipe.json")))
             }
-
-            // Photo payload for recipe-with-photo: stored uncompressed, like a real export.
-            out.write("photos/fixture-0002.jpeg", "fixture photo bytes".encodeToByteArray())
+            extraRecipeJson.forEach { (entryName, json) ->
+                out.write(entryName, gzip(json.encodeToByteArray()))
+            }
+            out.write("photos/fixture-0002.jpeg", photoBytes)
         }
         return file
     }

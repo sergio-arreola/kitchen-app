@@ -34,10 +34,54 @@ data class QuantityEvaluation(
     val status: QuantityStatus get() = reason.status
 }
 
-/** Evaluates one recipe line against all lots for its canonical ingredient. */
+/** Evaluates recipe lines against kitchen stock without mutating persisted inventory. */
 class QuantityEvaluator(
     private val converter: UnitConverter = UnitConverter(),
 ) {
+    fun evaluateAll(
+        requirements: List<RecipeIngredient>,
+        lots: List<InventoryLot>,
+    ): List<QuantityEvaluation> {
+        val ambiguousIngredients = requirements
+            .filter { it.importance.isRequired() }
+            .groupBy { it.ingredientId }
+            .filterValues { group -> group.size > 1 && group.any { it.quantity == null } }
+            .keys
+        var remainingLots = lots
+        return requirements.map { requirement ->
+            val evaluation = evaluate(requirement, remainingLots)
+            val result = if (
+                requirement.ingredientId in ambiguousIngredients &&
+                requirement.importance.isRequired() &&
+                evaluation.status == QuantityStatus.AVAILABLE
+            ) {
+                evaluation.copy(
+                    reason = evaluation.reason.copy(
+                        status = QuantityStatus.UNCERTAIN,
+                        message = "Another required line for this ingredient has no amount; confirm combined usage.",
+                    ),
+                )
+            } else {
+                evaluation
+            }
+            if (
+                requirement.ingredientId !in ambiguousIngredients &&
+                requirement.importance.isRequired() &&
+                evaluation.status in setOf(QuantityStatus.AVAILABLE, QuantityStatus.INSUFFICIENT)
+            ) {
+                val required = requirement.quantityHigh ?: requirement.quantity
+                val available = evaluation.reason.knownAvailable
+                if (required != null && available != null) {
+                    val consumed = minOf(required, available)
+                    if (consumed.isPositive()) {
+                        remainingLots = consumeExact(requirement, remainingLots, consumed)
+                    }
+                }
+            }
+            result
+        }
+    }
+
     fun evaluate(
         requirement: RecipeIngredient,
         lots: List<InventoryLot>,
@@ -100,6 +144,46 @@ class QuantityEvaluator(
             return result(requirement, QuantityStatus.INSUFFICIENT, "No measurable compatible amount is recorded.", needed)
         }
         return result(requirement, QuantityStatus.INSUFFICIENT, "Exact stock is below the required amount.", needed, exact)
+    }
+
+    private fun consumeExact(
+        requirement: RecipeIngredient,
+        lots: List<InventoryLot>,
+        quantityToConsume: Rational,
+    ): List<InventoryLot> {
+        var remainingToConsume = quantityToConsume
+        return buildList {
+            lots.forEach { lot ->
+                if (lot.ingredientId != requirement.ingredientId || remainingToConsume.isZero()) {
+                    add(lot)
+                    return@forEach
+                }
+                val amount = lot.amount
+                if (amount !is InventoryAmount.Exact) {
+                    add(lot)
+                    return@forEach
+                }
+                val available = convertAmount(amount.quantity, amount.unit, requirement.unit, requirement.ingredientId)
+                if (available == null || !available.isPositive()) {
+                    add(lot)
+                    return@forEach
+                }
+                val consumedInRequirementUnits = if (available <= remainingToConsume) available else remainingToConsume
+                val consumedInLotUnits = convertAmount(
+                    consumedInRequirementUnits,
+                    requirement.unit,
+                    amount.unit,
+                    requirement.ingredientId,
+                )
+                if (consumedInLotUnits == null) {
+                    add(lot)
+                    return@forEach
+                }
+                remainingToConsume -= consumedInRequirementUnits
+                val remainingInLot = amount.quantity - consumedInLotUnits
+                add(lot.copy(amount = InventoryAmount.Exact(remainingInLot, amount.unit)))
+            }
+        }
     }
 
     private fun convertAmount(

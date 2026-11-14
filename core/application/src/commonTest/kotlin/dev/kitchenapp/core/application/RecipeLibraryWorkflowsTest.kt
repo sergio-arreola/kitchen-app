@@ -58,6 +58,29 @@ class RecipeLibraryWorkflowsTest {
     }
 
     @Test
+    fun `most recent prioritizes import time over alphabetic recipe names`() {
+        val newest = Recipe(
+            name = "Zucchini supper",
+            ingredients = emptyList(),
+            directionsText = "Cook.",
+            importedAt = DomainInstant(Instant.parse("2026-11-09T12:00:00Z")),
+        )
+        val older = newest.copy(
+            id = RecipeId.generate(),
+            name = "Apple breakfast",
+            importedAt = DomainInstant(Instant.parse("2026-11-08T12:00:00Z")),
+        )
+        val legacyBanana = Recipe(name = "Banana legacy", ingredients = emptyList(), directionsText = "")
+        val legacyApricot = Recipe(name = "Apricot legacy", ingredients = emptyList(), directionsText = "")
+        val search = SearchRecipes(TestRecipeRepository(listOf(legacyBanana, older, legacyApricot, newest)))
+
+        assertEquals(
+            listOf(newest, older, legacyApricot, legacyBanana),
+            search.search("", RecipeLibraryFilter.MostRecent),
+        )
+    }
+
+    @Test
     fun `review save normalizes servings and sets import time only once`() {
         val now = Instant.parse("2026-11-08T12:00:00Z")
         val recipes = TestRecipeRepository()

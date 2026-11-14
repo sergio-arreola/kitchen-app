@@ -186,7 +186,7 @@ class KitchenBackupArchiveValidator {
     }
 
     private fun validateDocument(document: BackupDocument, assetPaths: Set<String>) {
-        val recipeIds = uniqueIds(document.recipes.map { it.id }, "recipe")
+        uniqueIds(document.recipes.map { it.id }, "recipe")
         val ingredientIds = uniqueIds(document.ingredients.map { it.id }, "ingredient")
         val locationIds = uniqueIds(document.locations.map { it.id }, "location")
         uniqueIds(document.inventoryLots.map { it.id }, "inventory lot")
@@ -326,7 +326,6 @@ class KitchenBackupArchiveValidator {
         document.cookingHistory.forEach { event ->
             nonBlank(event.id, "cook event ID")
             parseUuid(event.recipeId, "cook event recipe ID")
-            if (event.recipeId !in recipeIds) invalid("Cook event refers to a missing recipe")
             if (event.servings != null && event.servings <= 0) invalid("Cook event servings must be positive")
             parseDate(event.cookedOn, "cook date")
             event.undoneOn?.let { parseDate(it, "cook undo date") }
