@@ -10,3 +10,5 @@ out/
 .cxx/
 *.hprof
 /AGENTS.md
+/.compose-skill/
+/.gitmodules

@@ -589,7 +589,10 @@ internal fun RecipeDetailScreen(
             title = { Text("Delete recipe?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This permanently removes " + loadedRecipe.name + " from your recipe library.")
+                    Text(
+                        "This permanently removes ${loadedRecipe.name} and its details. Completed cooking and leftover " +
+                            "history is kept without the recipe.",
+                    )
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             },
