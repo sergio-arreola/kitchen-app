@@ -6,13 +6,13 @@ This is the evidence record for [Slice 13.4 and the V1 acceptance gate](NEXT-SLI
 
 | Item | Evidence |
 |---|---|
-| Candidate commit and branch | Working tree on `feat/slice-13-4-v1-offline-acceptance`; uncommitted candidate based on `41d4fd0`; candidate commit pending. |
+| Candidate commit and branch | Commit `a95ee72a131702b1c7e68ec68fc9fcb759b0f406` on `feat/slice-13-4-v1-offline-acceptance`; PR [#33](https://github.com/sergio-arreola/kitchen-app/pull/33). |
 | Acceptance date, reviewer, Android device/emulator and API level | 2026-11-13; `sdk_gphone64_arm64`, Android 17 / API 37; primary-agent review complete, independent reviewer pending. |
 | JVM/Gradle environment and network state | Gradle wrapper; deterministic JVM suites and `./gradlew check` passed. Emulator checks explicitly used Airplane mode for offline flows; network was restored afterward. |
 | Corpus revision and expected-outcomes review | `slice13-import-corpus-r1` and `slice13-matching-corpus-r1`; expected outcomes are self-authored and explicit. Independent corpus review pending. |
 | Earlier V1 exporter commit, fixture provenance and archive SHA-256 | `98b3315c7361be93b60273930d3dde71eea884ec`; `historical-v1-13-1.kitchenbackup`; SHA-256 `214ce178f11d531538799dd6de40cfb4230ec79bc4c06142c210bfff2cf8c657`; two generations matched. |
 | Targeted commands and results | `:data:importers:jvmTest --tests '*Slice13ImportAcceptanceTest'` passed; `:core:application:jvmTest --tests '*RecipeLibraryWorkflowsTest'` passed; `:core:domain:jvmTest :testkit:jvmTest --tests '*Slice13MatchingAcceptanceTest'` passed; `:data:backup:jvmTest --tests dev.kitchenapp.data.backup.HistoricalV1BackupRestoreTest` passed. `./gradlew check` passed. |
-| `./gradlew check` and required PR CI results | `./gradlew check` passed after the migration fix (198 tasks); PR CI pending because no PR is open yet. |
+| `./gradlew check` and required PR CI results | `./gradlew check` passed after the migration fix (198 tasks); PR #33 `CI/build` passed on commit `a95ee72`; Android Studio `androidTest` completed successfully. |
 | Independent review and remaining limitations | Sol/Luna/Terra reported findings and primary-agent review is complete; independent reviewer pending. [ADR 0008](decisions/0008-retain-detached-cooking-history.md) records the accepted retention decision. The migration was fixed and verified on Android; manual Paprika import, custom-category create/rename, and detached-history export/restore after deletion remain unverified on-device. |
 
 Use self-authored or redistributable fixtures. Do not include personal recipe
