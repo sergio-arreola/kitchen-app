@@ -42,8 +42,10 @@ class SearchRecipes(private val recipes: RecipeRepository) {
         }
         return if (filter == RecipeLibraryFilter.MostRecent) {
             filtered.filter { it.importedAt != null }
-                .sortedByDescending { it.importedAt?.value?.toString().orEmpty() }
-                .sortedBy { it.name.lowercase() } +
+                .sortedWith(
+                    compareByDescending<Recipe> { it.importedAt?.value?.toString().orEmpty() }
+                        .thenBy { it.name.lowercase() },
+                ) +
                 filtered.filter { it.importedAt == null }.sortedBy { it.name.lowercase() }
         } else {
             filtered

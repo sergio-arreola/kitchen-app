@@ -1,0 +1,107 @@
+CREATE TABLE cook_event_consumption_migration_backup (
+  event_id TEXT NOT NULL,
+  lot_id TEXT NOT NULL,
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  unit_code TEXT,
+  PRIMARY KEY (event_id, lot_id)
+);
+
+INSERT INTO cook_event_consumption_migration_backup
+SELECT event_id, lot_id, quantity_numerator, quantity_denominator, unit_code
+FROM cook_event_consumption;
+
+CREATE TABLE cook_event_inventory_before_migration_backup (
+  event_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  ingredient_id TEXT NOT NULL,
+  location_id TEXT NOT NULL,
+  amount_kind TEXT NOT NULL,
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  unit_code TEXT,
+  approximate_level TEXT,
+  purchased_on TEXT,
+  opened_on TEXT,
+  frozen_on TEXT,
+  manufacturer_use_by TEXT,
+  user_use_by TEXT,
+  PRIMARY KEY (event_id, id)
+);
+
+INSERT INTO cook_event_inventory_before_migration_backup
+SELECT event_id, id, ingredient_id, location_id, amount_kind,
+       quantity_numerator, quantity_denominator, unit_code, approximate_level,
+       purchased_on, opened_on, frozen_on, manufacturer_use_by, user_use_by
+FROM cook_event_inventory_before;
+
+CREATE TABLE cook_event_undo_migration_backup (
+  event_id TEXT NOT NULL PRIMARY KEY,
+  undone_on TEXT NOT NULL
+);
+
+INSERT INTO cook_event_undo_migration_backup
+SELECT event_id, undone_on FROM cook_event_undo;
+
+CREATE TABLE leftover_migration_backup (
+  id TEXT NOT NULL PRIMARY KEY,
+  cook_event_id TEXT NOT NULL,
+  ingredient_id TEXT,
+  name TEXT NOT NULL,
+  quantity_numerator INTEGER,
+  quantity_denominator INTEGER,
+  unit_code TEXT,
+  prepared_on TEXT NOT NULL,
+  use_by TEXT
+);
+
+INSERT INTO leftover_migration_backup
+SELECT id, cook_event_id, ingredient_id, name, quantity_numerator,
+       quantity_denominator, unit_code, prepared_on, use_by
+FROM leftover;
+
+CREATE TABLE cook_event_replacement (
+  id TEXT NOT NULL PRIMARY KEY,
+  recipe_id TEXT NOT NULL,
+  cooked_on TEXT NOT NULL,
+  servings TEXT,
+  note TEXT,
+  leftover_follow_up_pending INTEGER NOT NULL DEFAULT 0,
+  leftover_reminder_claimed INTEGER NOT NULL DEFAULT 0
+);
+
+INSERT INTO cook_event_replacement
+SELECT id, recipe_id, cooked_on, servings, note,
+       leftover_follow_up_pending, leftover_reminder_claimed
+FROM cook_event;
+
+DROP TABLE cook_event;
+-- Android applies migrations before enabling foreign keys, so clear dependents explicitly in either mode.
+DELETE FROM cook_event_consumption;
+DELETE FROM cook_event_inventory_before;
+DELETE FROM cook_event_undo;
+DELETE FROM leftover;
+ALTER TABLE cook_event_replacement RENAME TO cook_event;
+
+INSERT INTO cook_event_consumption
+SELECT event_id, lot_id, quantity_numerator, quantity_denominator, unit_code
+FROM cook_event_consumption_migration_backup;
+
+INSERT INTO cook_event_inventory_before
+SELECT event_id, id, ingredient_id, location_id, amount_kind,
+       quantity_numerator, quantity_denominator, unit_code, approximate_level,
+       purchased_on, opened_on, frozen_on, manufacturer_use_by, user_use_by
+FROM cook_event_inventory_before_migration_backup;
+
+INSERT INTO cook_event_undo
+SELECT event_id, undone_on FROM cook_event_undo_migration_backup;
+
+INSERT INTO leftover
+SELECT id, cook_event_id, ingredient_id, name, quantity_numerator,
+       quantity_denominator, unit_code, prepared_on, use_by
+FROM leftover_migration_backup;
+
+DROP TABLE cook_event_consumption_migration_backup;
+DROP TABLE cook_event_inventory_before_migration_backup;
+DROP TABLE cook_event_undo_migration_backup;
+DROP TABLE leftover_migration_backup;

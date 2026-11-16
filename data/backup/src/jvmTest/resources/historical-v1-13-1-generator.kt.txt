@@ -1,0 +1,165 @@
+package dev.kitchenapp.data.backup
+
+import dev.kitchenapp.core.application.ConsumedInventory
+import dev.kitchenapp.core.application.CookEvent
+import dev.kitchenapp.core.application.CookHistoryEntry
+import dev.kitchenapp.core.application.KitchenBackupLeftover
+import dev.kitchenapp.core.application.KitchenBackupSnapshot
+import dev.kitchenapp.core.application.KitchenSnapshot
+import dev.kitchenapp.core.application.RecipeBackupEntry
+import dev.kitchenapp.core.domain.enums.ApproximateLevel
+import dev.kitchenapp.core.domain.enums.IngredientImportance
+import dev.kitchenapp.core.domain.household.HouseholdIngredientRules
+import dev.kitchenapp.core.domain.identifiers.IngredientId
+import dev.kitchenapp.core.domain.identifiers.InventoryLotId
+import dev.kitchenapp.core.domain.identifiers.KitchenLocationId
+import dev.kitchenapp.core.domain.identifiers.RecipeId
+import dev.kitchenapp.core.domain.identifiers.RecipeIngredientId
+import dev.kitchenapp.core.domain.identifiers.ShoppingListItemId
+import dev.kitchenapp.core.domain.ingredient.Ingredient
+import dev.kitchenapp.core.domain.inventory.InventoryAmount
+import dev.kitchenapp.core.domain.inventory.InventoryLot
+import dev.kitchenapp.core.domain.inventory.KitchenInventory
+import dev.kitchenapp.core.domain.inventory.KitchenLocation
+import dev.kitchenapp.core.domain.math.Rational
+import dev.kitchenapp.core.domain.recipe.Recipe
+import dev.kitchenapp.core.domain.recipe.RecipeImage
+import dev.kitchenapp.core.domain.recipe.RecipeIngredient
+import dev.kitchenapp.core.domain.shopping.ShoppingList
+import dev.kitchenapp.core.domain.shopping.ShoppingListItem
+import dev.kitchenapp.core.domain.time.DomainInstant
+import dev.kitchenapp.core.domain.time.DomainLocalDate
+import dev.kitchenapp.core.domain.units.UnitCode
+import java.io.ByteArrayInputStream
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
+import java.security.MessageDigest
+import java.util.Base64
+import javax.imageio.ImageIO
+import kotlin.test.Test
+import kotlin.test.assertNotNull
+import kotlin.time.Instant
+import kotlin.uuid.Uuid
+import kotlinx.datetime.LocalDate
+
+/** Run only in the detached 13.1 checkout to create a synthetic V1 archive. */
+class HistoricalV1FixtureGenerator {
+    @Test
+    fun generate() {
+        val output = requireNotNull(System.getenv("KITCHEN_HISTORICAL_V1_OUTPUT"))
+        val ingredientId = IngredientId(Uuid.parse("00000000-0000-4000-8000-000000000001"))
+        val allergenId = IngredientId(Uuid.parse("00000000-0000-4000-8000-000000000002"))
+        val lotId = InventoryLotId(Uuid.parse("00000000-0000-4000-8000-000000000003"))
+        val locationId = KitchenLocationId(Uuid.parse("00000000-0000-4000-8000-000000000004"))
+        val recipeId = RecipeId(Uuid.parse("00000000-0000-4000-8000-000000000005"))
+        val recipeIngredientId = RecipeIngredientId(Uuid.parse("00000000-0000-4000-8000-000000000006"))
+        val shoppingItemId = ShoppingListItemId(Uuid.parse("00000000-0000-4000-8000-000000000007"))
+        val leftoverId = InventoryLotId(Uuid.parse("00000000-0000-4000-8000-000000000008"))
+        val prepared = DomainLocalDate(LocalDate.parse("2026-01-03"))
+        val imageBytes = Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        )
+        assertNotNull(ImageIO.read(ByteArrayInputStream(imageBytes)))
+        val ingredient = Ingredient(ingredientId, "Synthetic flour", setOf("test flour"))
+        val allergen = Ingredient(allergenId, "Synthetic milk")
+        val recipe = Recipe(
+            id = recipeId,
+            name = "Synthetic bread",
+            servings = "4 servings",
+            ingredients = listOf(
+                RecipeIngredient(
+                    id = recipeIngredientId,
+                    ingredientId = ingredientId,
+                    quantity = Rational.of(2),
+                    unit = UnitCode.CUP,
+                    importance = IngredientImportance.CRITICAL,
+                    approximateLevel = ApproximateLevel.EXACT,
+                    rawLine = "2 cups synthetic flour",
+                ),
+            ),
+            directionsText = "Mix and bake.",
+            notes = "Synthetic fixture.",
+            categories = listOf("Synthetic"),
+            sourceName = "Synthetic source",
+            sourceUrl = "https://example.invalid/recipe",
+            imageSourceUrl = "https://example.invalid/image.png",
+            prepTimeSeconds = 300,
+            cookTimeSeconds = 900,
+            totalTimeSeconds = 1200,
+            importedAt = DomainInstant(Instant.parse("2026-01-02T12:00:00Z")),
+            mealTypes = listOf("Breakfast"),
+        )
+        val before = InventoryLot(
+            id = lotId,
+            ingredientId = ingredientId,
+            locationId = locationId,
+            amount = InventoryAmount.Exact(Rational.of(5), UnitCode.CUP),
+            purchasedOn = prepared,
+        )
+        val event = CookEvent(
+            id = "synthetic-event",
+            recipeId = recipeId,
+            servings = 4,
+            cookedOn = prepared,
+            consumed = listOf(ConsumedInventory(lotId, Rational.of(1), UnitCode.CUP)),
+        )
+        val snapshot = KitchenBackupSnapshot(
+            recipes = listOf(RecipeBackupEntry(recipe, RecipeImage(imageBytes, "image/png"))),
+            categories = listOf("Synthetic"),
+            kitchen = KitchenSnapshot(
+                ingredients = listOf(ingredient, allergen),
+                inventory = KitchenInventory(
+                    locations = listOf(KitchenLocation(locationId, "Synthetic pantry")),
+                    lots = listOf(before.copy(amount = InventoryAmount.Exact(Rational.of(4), UnitCode.CUP))),
+                ),
+                availableEquipment = setOf("Synthetic oven"),
+                householdRules = HouseholdIngredientRules(allergens = setOf(allergenId)),
+            ),
+            shoppingList = ShoppingList(
+                createdAt = DomainInstant(Instant.parse("2026-01-03T12:00:00Z")),
+                items = listOf(
+                    ShoppingListItem(
+                        id = shoppingItemId,
+                        ingredientId = ingredientId,
+                        ingredientName = ingredient.name,
+                        quantity = Rational.of(1),
+                        unit = UnitCode.CUP,
+                        sourceRecipeIds = setOf(recipeId),
+                        checked = true,
+                    ),
+                ),
+            ),
+            cookingHistory = listOf(
+                CookHistoryEntry(
+                    event = event,
+                    leftoverFollowUpPending = false,
+                    hasLeftovers = true,
+                    leftoverReminderClaimed = true,
+                    undoneOn = null,
+                    inventoryBefore = listOf(before),
+                ),
+            ),
+            leftovers = listOf(
+                KitchenBackupLeftover(
+                    id = leftoverId,
+                    cookEventId = event.id,
+                    ingredientId = ingredientId,
+                    name = "Synthetic bread",
+                    quantity = Rational.of(2),
+                    unit = UnitCode.SERVING,
+                    preparedOn = prepared,
+                    useBy = DomainLocalDate(LocalDate.parse("2026-01-05")),
+                ),
+            ),
+        )
+        val archive = KitchenBackupArchiveExporter().encode(
+            snapshot,
+            DomainInstant(Instant.parse("2026-01-04T12:00:00Z")),
+        )
+        Files.write(Path.of(output), archive, StandardOpenOption.CREATE_NEW)
+        val sha256 = MessageDigest.getInstance("SHA-256").digest(archive)
+            .joinToString("") { byte -> byte.toUByte().toString(16).padStart(2, '0') }
+        println("Historical V1 fixture SHA-256: $sha256")
+    }
+}

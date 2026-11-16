@@ -160,8 +160,9 @@ class RecipeMatcher(
             }
         }
 
-        val explanations = recipe.ingredients.map { requirement ->
-            val quantity = quantityEvaluator.evaluate(requirement, input.inventory.lots)
+        val quantityEvaluations = quantityEvaluator.evaluateAll(recipe.ingredients, input.inventory.lots)
+        val explanations = recipe.ingredients.mapIndexed { index, requirement ->
+            val quantity = quantityEvaluations[index]
             val freshness = input.inventory.lots
                 .filter { it.ingredientId == requirement.ingredientId }
                 .map { lot -> freshnessExplanation(lot, requirement.ingredientId, input) }

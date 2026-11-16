@@ -33,6 +33,8 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))
+            implementation(project(":data:database"))
+            implementation(libs.sqldelight.sqlite.driver)
         }
     }
 }
